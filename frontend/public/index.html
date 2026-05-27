@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Monitoreo de Encuesta</title>
+    <!-- Tailwind CSS CDN para un desarrollo rápido -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" type="image/png" href="assets/favicon.png">
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col font-sans">
+
+    <!-- Encabezado -->
+    <header class="bg-white shadow-md py-4 px-6 flex items-center justify-between flex-wrap">
+        <div class="flex items-center">
+            <img src="assets/Logo.png" alt="Logo de la Universidad" class="h-20 mr-4">
+        </div>
+        <h2 class="text-xl md:text-2xl font-semibold text-gray-700 mt-2 md:mt-0 text-center flex-grow">
+            ENCUESTA DE SATISFACCIÓN PREGRADO 2026-1
+        </h2>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-grow flex flex-col items-center justify-start p-6 space-y-8">
+        <!-- Panel de Estadísticas (Ahora en la parte superior en horizontal) -->
+        <aside class="w-full flex flex-col sm:flex-row justify-center items-center gap-4 mb-8">
+            <div class="stat-card bg-blue-600 text-white p-4 rounded-lg shadow-xl text-center relative overflow-hidden flex-1 max-w-xs">
+                <div class="text-4xl font-extrabold" id="totalScans">0</div>
+                <p class="text-base font-medium">Escaneos Totales</p>
+                <div class="new-response-indicator hidden absolute top-1 right-1 w-3 h-3 bg-yellow-300 rounded-full animate-ping"></div>
+            </div>
+            <div class="stat-card bg-green-600 text-white p-4 rounded-lg shadow-xl text-center relative overflow-hidden flex-1 max-w-xs">
+                <div class="text-4xl font-extrabold" id="completedSurveys">0</div>
+                <p class="text-base font-medium">Encuestas Completadas</p>
+                <div class="new-response-indicator hidden absolute top-1 right-1 w-3 h-3 bg-yellow-300 rounded-full animate-ping"></div>
+            </div>
+            <div class="stat-card bg-orange-600 text-white p-4 rounded-lg shadow-xl text-center flex-1 max-w-xs">
+                <div class="text-4xl font-extrabold" id="pendingRespondents">0</div>
+                <p class="text-base font-medium">Encuestados Pendientes</p>
+            </div>
+        </aside>
+
+        <section class="flex flex-col items-center bg-white p-8 rounded-lg shadow-lg w-full max-w-lg">
+            <img src="assets/QRCode.png" alt="Código QR de la Encuesta" class="w-full h-auto object-contain mb-0">
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white text-center py-4 px-6 mt-auto">
+        <p>&copy; 2026. Todos los derechos reservados.</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
