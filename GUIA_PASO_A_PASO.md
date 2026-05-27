@@ -16,6 +16,7 @@ Sigue estos pasos para poner en marcha el proyecto:
 2. Sube los archivos de la carpeta `backend/` de este proyecto a ese repositorio. Debe quedar así:
    - `api/` (carpeta con los 3 archivos .js)
    - `package.json`
+   - `vercel.json` (¡Muy importante para enrutar las funciones!)
    - `README.md`
 
 ### Paso B: Conectar con Vercel
