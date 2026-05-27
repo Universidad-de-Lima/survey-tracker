@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/qr-scan",
+      "dest": "api/qr-scan.js"
+    },
+    {
+      "src": "/api/zoho-webhook",
+      "dest": "api/zoho-webhook.js"
+    },
+    {
+      "src": "/api/get-counts",
+      "dest": "api/get-counts.js"
+    }
+  ]
+}
