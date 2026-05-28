@@ -11,7 +11,7 @@ export async function registerRateLimit(app: FastifyInstance): Promise<void> {
       statusCode: 429,
       error: 'Too many requests',
       code: 'RATE_LIMIT_EXCEEDED',
-      message: `Rate limit exceeded. Max ${context.max} requests per ${context.after / 1000}s`,
+      message: `Rate limit exceeded. Max ${context.max} requests per ${Number(context.after) / 1000}s`,
       retryAfter: context.after,
     }),
   });

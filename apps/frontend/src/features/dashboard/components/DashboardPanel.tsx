@@ -1,5 +1,6 @@
-import { DashboardCard } from './DashboardCard';
 import type { DashboardCounts } from '@/features/dashboard/types';
+
+import { DashboardCard } from './DashboardCard';
 
 interface DashboardPanelProps {
   counts: DashboardCounts | null;

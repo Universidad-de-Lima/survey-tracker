@@ -1,6 +1,6 @@
-import { useSurveyCounts } from '@/features/dashboard/hooks/useSurveyCounts';
 import { DashboardPanel } from '@/features/dashboard/components/DashboardPanel';
 import { QRCodeSection } from '@/features/dashboard/components/QRCodeSection';
+import { useSurveyCounts } from '@/features/dashboard/hooks/useSurveyCounts';
 
 export function DashboardPage() {
   const { data: counts, isLoading, isError, error } = useSurveyCounts();

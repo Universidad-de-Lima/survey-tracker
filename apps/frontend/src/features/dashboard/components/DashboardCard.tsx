@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+
 import type { DashboardCardProps } from '@/features/dashboard/types';
 
 const COLOR_MAP = {
