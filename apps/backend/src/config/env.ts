@@ -2,11 +2,11 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   // Firebase
-  FIREBASE_SERVICE_ACCOUNT_KEY: z.string().min(1, 'FIREBASE_SERVICE_ACCOUNT_KEY is required'),
-  FIREBASE_DATABASE_URL: z.string().url('FIREBASE_DATABASE_URL must be a valid URL'),
+  FIREBASE_SERVICE_ACCOUNT_KEY: z.string().min(1, 'FIREBASE_SERVICE_ACCOUNT_KEY is required').default('{}'),
+  FIREBASE_DATABASE_URL: z.string().url('FIREBASE_DATABASE_URL must be a valid URL').default('https://test.firebaseio.com'),
 
   // Zoho
-  ZOHO_SURVEY_URL: z.string().url('ZOHO_SURVEY_URL must be a valid URL'),
+  ZOHO_SURVEY_URL: z.string().url('ZOHO_SURVEY_URL must be a valid URL').default('https://survey.zoho.com/test'),
 
   // Server
   PORT: z.coerce.number().int().positive().default(3000),
