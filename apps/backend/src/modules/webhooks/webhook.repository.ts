@@ -10,11 +10,11 @@ export async function incrementCompletedCount(): Promise<number> {
     const db = getFirebaseDb();
     const completedRef = db.ref(`${SURVEY_COUNTS_REF}/${COMPLETED_FIELD}`);
 
-    const result = await completedRef.transaction((currentCount: number | null) => {
-      return (currentCount ?? 0) + 1;
+    const result = await completedRef.transaction((currentCount) => {
+      return ((currentCount as number) || 0) + 1;
     });
 
-    const newCount = result.snapshot.val() as number;
+    const newCount = (result?.snapshot.val() as number) ?? 0;
     logger.info('Completed count incremented', { newCount });
     return newCount;
   } catch (error) {

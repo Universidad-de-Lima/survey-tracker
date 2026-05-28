@@ -10,11 +10,11 @@ export async function incrementScanCount(): Promise<number> {
     const db = getFirebaseDb();
     const scannedRef = db.ref(`${SURVEY_COUNTS_REF}/${SCANNED_FIELD}`);
 
-    const result = await scannedRef.transaction((currentCount: number | null) => {
-      return (currentCount ?? 0) + 1;
+    const result = await scannedRef.transaction((currentCount) => {
+      return ((currentCount as number) || 0) + 1;
     });
 
-    const newCount = result.snapshot.val() as number;
+    const newCount = (result?.snapshot.val() as number) ?? 0;
     logger.info('Scan count incremented', { newCount });
     return newCount;
   } catch (error) {

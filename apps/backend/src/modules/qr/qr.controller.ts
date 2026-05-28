@@ -6,7 +6,7 @@ import { logger } from '@/shared/utils/logger';
 export async function handleQrScan(_request: FastifyRequest, reply: FastifyReply): Promise<void> {
   logger.info('QR scan request received');
 
-  const result = await processQrScan();
+  await processQrScan();
 
   // Redirect to Zoho Survey after recording the scan
   reply.redirect(302, env.ZOHO_SURVEY_URL);
