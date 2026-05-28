@@ -1,4 +1,5 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
+
 import { AppError } from '@/shared/errors/app-error';
 import { logger } from '@/shared/utils/logger';
 

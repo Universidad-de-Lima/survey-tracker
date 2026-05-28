@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+
 import { env } from '@/config/env';
 
 let firebaseInitialized = false;

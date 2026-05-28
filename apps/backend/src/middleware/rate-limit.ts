@@ -1,5 +1,6 @@
-import type { FastifyInstance } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
+import type { FastifyInstance } from 'fastify';
+
 import { env } from '@/config/env';
 
 export async function registerRateLimit(app: FastifyInstance): Promise<void> {

@@ -1,11 +1,16 @@
 {
-  "extends": "@survey-tracker/tsconfig/base.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
     "outDir": "./dist",
-    "rootDir": "./src",
-    "composite": false,
-    "declaration": false,
-    "declarationMap": false
+    "rootDir": "./src"
   },
   "include": ["src"]
 }

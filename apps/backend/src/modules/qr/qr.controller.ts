@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { processQrScan } from '@/modules/qr/qr.service';
+
 import { env } from '@/config/env';
+import { processQrScan } from '@/modules/qr/qr.service';
 import { logger } from '@/shared/utils/logger';
 
 export async function handleQrScan(_request: FastifyRequest, reply: FastifyReply): Promise<void> {

@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "dev:vercel": "vercel dev",
-    "build": "tsc -b",
+    "build": "echo 'Build handled by Vercel'",
     "start": "node dist/server.js",
     "lint": "eslint . --ext .js,.ts",
     "test": "vitest run",
