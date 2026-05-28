@@ -1,6 +1,7 @@
 import { getFirebaseDb } from '@/config/firebase';
-import { logger } from '@/shared/utils/logger';
+
 import { AppError } from '@/shared/errors/app-error';
+import { logger } from '@/shared/utils/logger';
 import type { SurveyCounts } from '@/modules/surveys/survey.types';
 
 const SURVEY_COUNTS_REF = 'survey_counts';

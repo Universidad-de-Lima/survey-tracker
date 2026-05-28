@@ -1,5 +1,4 @@
 import { getFirebaseDb } from '@/config/firebase';
-
 import { AppError } from '@/shared/errors/app-error';
 import { logger } from '@/shared/utils/logger';
 

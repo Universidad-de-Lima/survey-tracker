@@ -25,6 +25,10 @@ function parseEnv(): z.infer<typeof envSchema> {
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
+    if (process.env.NODE_ENV === 'test') {
+      // Return defaults when running tests without env vars
+      return envSchema.parse({});
+    }
     console.error('❌ Environment variable validation failed:');
     const formatted = result.error.format();
     for (const [key, issue] of Object.entries(formatted)) {

@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
+
 import { getCounts } from '@/modules/surveys/survey.service';
 
 export async function handleGetCounts(
