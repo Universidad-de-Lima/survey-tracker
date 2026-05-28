@@ -1,0 +1,18 @@
+{
+  "extends": "@survey-tracker/tsconfig/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@survey-tracker/shared-types": ["packages/shared-types/src"],
+      "@survey-tracker/ui": ["packages/ui/src"]
+    }
+  },
+  "references": [
+    { "path": "packages/tsconfig" },
+    { "path": "packages/shared-types" },
+    { "path": "packages/eslint-config" },
+    { "path": "apps/frontend" },
+    { "path": "apps/backend" }
+  ],
+  "exclude": ["node_modules", "dist"]
+}

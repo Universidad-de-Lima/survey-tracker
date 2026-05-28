@@ -1,0 +1,30 @@
+// Prisma schema for future PostgreSQL migration
+// Currently using Firebase Realtime Database
+// This schema serves as the target data model
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SurveyCount {
+  id        String   @id @default(cuid())
+  scanned   Int      @default(0)
+  completed Int      @default(0)
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+}
+
+model SurveyResponse {
+  id              String   @id @default(cuid())
+  responseStatus  String   // COMPLETED, INCOMPLETE, PARTIAL
+  webhookEvent    String   // response_completed, etc.
+  rawPayload      Json?
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@survey-tracker/frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Frontend dashboard para monitoreo de encuestas",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .ts,.tsx",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "@survey-tracker/shared-types": "workspace:*",
+    "@tanstack/react-query": "^5.32.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@survey-tracker/eslint-config": "workspace:*",
+    "@survey-tracker/tsconfig": "workspace:*",
+    "@tailwindcss/vite": "^4.1.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "tailwindcss": "^4.1.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "serve": "^14.2.0"
+  }
+}

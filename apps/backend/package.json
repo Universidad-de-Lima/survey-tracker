@@ -1,0 +1,32 @@
+{
+  "name": "@survey-tracker/backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend serverless para monitoreo de encuestas Zoho",
+  "main": "api/get-counts.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "dev:vercel": "vercel dev",
+    "build": "tsc -b",
+    "start": "node dist/server.js",
+    "lint": "eslint . --ext .js,.ts",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist .vercel node_modules"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.0",
+    "@fastify/rate-limit": "^9.0.0",
+    "@survey-tracker/shared-types": "workspace:*",
+    "firebase-admin": "^11.0.0",
+    "fastify": "^4.26.0",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@survey-tracker/eslint-config": "workspace:*",
+    "@survey-tracker/tsconfig": "workspace:*",
+    "@types/node": "^20.12.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vercel": "^32.0.0"
+  }
+}

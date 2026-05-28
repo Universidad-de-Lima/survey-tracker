@@ -1,0 +1,27 @@
+# Backend-specific Dockerfile
+FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat && npm install -g pnpm@9
+WORKDIR /app
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/backend/package.json ./apps/backend/
+COPY packages/ ./packages/
+RUN pnpm install --frozen-lockfile
+
+FROM node:20-alpine AS builder
+RUN npm install -g pnpm@9
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages ./packages
+COPY . .
+RUN pnpm --filter @survey-tracker/backend build
+
+FROM node:20-alpine AS runner
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 appuser
+WORKDIR /app
+COPY --from=builder /app/apps/backend/dist ./dist
+COPY --from=builder /app/apps/backend/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+USER appuser
+EXPOSE 3000
+ENV NODE_ENV=production
+CMD ["node", "dist/server.js"]

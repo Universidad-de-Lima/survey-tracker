@@ -34,24 +34,48 @@ Sistema de monitoreo en tiempo real para encuestas de satisfacción universitari
         └──────────────────────────────────────────────┘
 ```
 
+## Migration Status
+
+| Fase | Estado | Descripción |
+|------|--------|-------------|
+| FASE 1 | ✅ Completa | Monorepo + pnpm + Turbo + TypeScript base + ESLint + Prettier + Husky |
+| FASE 2 | 🔄 Pendiente | Frontend: Vite + React + TanStack Query + Feature-Based Architecture |
+| FASE 3 | ⏳ Pendiente | Backend: Fastify + Clean Architecture + Prisma + PostgreSQL |
+| FASE 4 | ⏳ Pendiente | Testing: Vitest + Testing Library + Playwright + Supertest |
+| FASE 5 | ⏳ Pendiente | CI/CD: GitHub Actions workflows |
+| FASE 6 | ⏳ Pendiente | Observabilidad + Seguridad + Performance |
+
 ## Repository Structure
 
 ```
 survey-tracker/
-├── backend/                  # Serverless API (Vercel)
-│   ├── api/
-│   │   ├── get-counts.js     # GET: retorna contadores actuales
-│   │   ├── qr-scan.js        # GET: registra escaneo y redirige a Zoho
-│   │   └── zoho-webhook.js   # POST: recibe notificación de encuesta completada
-│   ├── package.json
-│   └── vercel.json           # Configuración de rutas y builds Vercel
-├── frontend/                 # Static dashboard (GitHub Pages)
-│   └── public/
-│       ├── index.html        # Página principal del dashboard
-│       ├── css/style.css     # Estilos adicionales
-│       ├── js/app.js         # Lógica de polling y animación de contadores
-│       └── assets/           # Imágenes (logo, QR, favicon)
-└── README.md                 # Este archivo
+├── apps/
+│   ├── backend/              # Serverless API (Vercel) → Migrating to Fastify
+│   │   ├── api/              # Current serverless endpoints (JS)
+│   │   │   ├── get-counts.js     # GET: retorna contadores actuales
+│   │   │   ├── qr-scan.js        # GET: registra escaneo y redirige a Zoho
+│   │   │   └── zoho-webhook.js   # POST: recibe notificación de encuesta completada
+│   │   ├── src/              # Future Fastify backend (TypeScript)
+│   │   ├── package.json
+│   │   └── vercel.json
+│   └── frontend/             # Dashboard → Migrating to React + Vite
+│       ├── public/           # Current static files (HTML/CSS/JS)
+│       └── src/              # Future React app (TypeScript)
+├── packages/
+│   ├── ui/                   # Shared UI components (future)
+│   ├── shared-types/         # Shared TypeScript types
+│   ├── eslint-config/        # Shared ESLint configuration
+│   └── tsconfig/             # Shared TypeScript configurations
+├── .github/workflows/        # CI/CD pipelines
+├── .vscode/                  # VS Code configuration & agents instructions
+├── docs/                     # Architecture, API, and decision records
+├── infrastructure/           # Docker, deployment configs
+├── scripts/                  # Build and utility scripts
+├── tests/                    # E2E and integration tests
+├── package.json              # Monorepo root (pnpm workspace)
+├── pnpm-workspace.yaml       # Workspace configuration
+├── turbo.json                # Turborepo pipeline
+└── README.md
 ```
 
 ## Tech Stack
