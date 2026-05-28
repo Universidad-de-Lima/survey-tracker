@@ -33,7 +33,6 @@
       "cache": false
     },
     "type-check": {
-      "dependsOn": ["^build"],
       "outputs": []
     }
   }

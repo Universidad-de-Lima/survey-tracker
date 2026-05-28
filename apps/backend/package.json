@@ -10,6 +10,7 @@
     "build": "tsc -b",
     "start": "node dist/server.js",
     "lint": "eslint . --ext .js,.ts",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist .vercel node_modules"
   },

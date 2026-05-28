@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .ts,.tsx",
+    "test": "vitest run",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist node_modules"
   },
