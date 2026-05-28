@@ -39,7 +39,7 @@ module.exports = {
     'import/no-duplicates': 'error',
 
     // General
-    'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
+    'no-console': ['warn', { allow: ['warn', 'error', 'info', 'log'] }],
     'prefer-const': 'error',
     'no-var': 'error',
     eqeqeq: ['error', 'always'],
