@@ -1,10 +1,26 @@
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { DashboardCard } from '@/features/dashboard/components/DashboardCard';
+
+// Mock requestAnimationFrame to execute callback immediately
+beforeEach(() => {
+  vi.useFakeTimers();
+  const mockRaf = (cb: FrameRequestCallback) => {
+    cb(Date.now());
+    return 0;
+  };
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(mockRaf);
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('DashboardCard', () => {
   it('renders label and value', () => {
     render(<DashboardCard label="Test Label" value={42} color="blue" />);
+    vi.advanceTimersByTime(1000);
 
     expect(screen.getByText('Test Label')).toBeInTheDocument();
     expect(screen.getByText('42')).toBeInTheDocument();
