@@ -11,7 +11,7 @@ export async function incrementCompletedCount(): Promise<number> {
     const completedRef = db.ref(`${SURVEY_COUNTS_REF}/${COMPLETED_FIELD}`);
 
     const result = await completedRef.transaction((currentCount) => {
-      return ((currentCount as number) || 0) + 1;
+      return Number(currentCount ?? 0) + 1;
     });
 
     const newCount = (result?.snapshot.val() as number) ?? 0;
