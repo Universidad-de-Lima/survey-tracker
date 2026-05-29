@@ -49,6 +49,12 @@ Frontend ──GET──> /api/get-counts ──once("value")──> Firebase: s
               <── { scanned: number, completed: number }
 ```
 
+### Reset de Contadores
+```
+Frontend ──POST──> /api/reset-counts ──set({ scanned:0, completed:0 })──> Firebase
+                <── { message, previousCounts: { scanned, completed } }
+```
+
 ## Dependencies
 
 | Paquete | Propósito |
@@ -92,8 +98,8 @@ src/
 ├── modules/         # Feature modules (Clean Architecture)
 │   ├── surveys/     #   controller → service → repository
 │   ├── qr/          #   controller → service → repository
-│   ├── analytics/   #   (future)
-│   └── webhooks/    #   controller → service → repository
+│   ├── webhooks/    #   controller → service → repository
+│   └── reset/       #   controller → service → repository (reset counters)
 ├── middleware/      # CORS, rate-limit, error-handler
 ├── shared/          # Errors, logger, utils
 ├── database/        # Prisma schema (future PostgreSQL)

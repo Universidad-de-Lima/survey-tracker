@@ -1,6 +1,6 @@
 # Frontend — Dashboard de Monitoreo (GitHub Pages)
 
-Dashboard web estático que muestra en tiempo real los contadores de escaneos QR y encuestas completadas. Desplegado en GitHub Pages.
+Dashboard en React + Vite + TypeScript que muestra en tiempo real los contadores de escaneos QR y encuestas completadas. Desplegado en GitHub Pages.
 
 ## Purpose
 
@@ -11,42 +11,57 @@ Proveer una interfaz visual para monitorear el progreso de una encuesta de satis
 
 ## Architecture Role
 
-Capa de presentación del sistema `survey-tracker`. Frontend vanilla (sin framework) que consume datos del backend serverless mediante polling HTTP.
+Capa de presentación del sistema `survey-tracker`. SPA React que consume datos del backend serverless mediante polling HTTP con TanStack Query.
+
+## Stack
+
+| Tecnología | Versión | Uso |
+|-----------|---------|-----|
+| React | 18 | UI framework |
+| TypeScript | 5.4 | Lenguaje tipado |
+| Vite | 5 | Build tool |
+| Tailwind CSS | 4 | Framework CSS |
+| TanStack Query | 5 | Data fetching + polling |
+| Zod | 3 | Validación de entorno |
+| Vitest | 1.6 | Testing |
+| Testing Library | 15 | Component testing |
 
 ## Key Files
 
 | Ruta | Propósito |
 |------|-----------|
-| `public/index.html` | Página principal con layout del dashboard |
-| `public/js/app.js` | Lógica de polling, animación de contadores, manejo de respuestas |
-| `public/css/style.css` | Estilos adicionales a Tailwind CSS |
-| `public/assets/Logo.png` | Logotipo institucional |
-| `public/assets/QRCode.png` | Código QR de la encuesta |
-| `public/assets/favicon.png` | Favicon del sitio |
+| `src/app/App.tsx` | Root component con QueryClientProvider |
+| `src/app/layouts/MainLayout.tsx` | Layout principal (Header + Footer) |
+| `src/features/dashboard/pages/DashboardPage.tsx` | Página principal del dashboard |
+| `src/features/dashboard/components/DashboardCard.tsx` | Card con contador animado |
+| `src/features/dashboard/components/DashboardPanel.tsx` | Panel de 3 cards |
+| `src/features/dashboard/components/QRCodeSection.tsx` | Sección del código QR |
+| `src/features/dashboard/components/ResetButton.tsx` | Botón de reset de contadores |
+| `src/features/dashboard/hooks/useSurveyCounts.ts` | Hook useQuery + useMutation |
+| `src/features/dashboard/services/dashboardService.ts` | Llamadas API |
+| `src/shared/services/api.ts` | Cliente HTTP genérico |
+| `src/shared/validators/env.ts` | Validación de VITE_* con Zod |
 
 ## Data Flow
 
 ```
-app.js ──GET cada 5s──> /api/get-counts ──> Firebase RTDB
-    <── { scanned, completed }
-    │
-    ├── Actualiza #totalScans (con animación)
-    ├── Actualiza #completedSurveys (con animación)
-    └── Calcula pending = scanned - completed
-         └── Actualiza #pendingRespondents (con animación)
+DashboardPage
+  └── useSurveyCounts()       ← TanStack Query (polling 5s)
+        └── fetchSurveyCounts()
+              └── apiClient.get('/get-counts')
+                    └── GET https://<vercel>/api/get-counts
+                          └── Firebase RTDB: survey_counts
 ```
 
 ## Execution Flow
 
-1. `index.html` se carga → muestra valores iniciales en 0
-2. `app.js` se ejecuta inmediatamente:
-   - Llama `updateCounters()` (primera carga)
-   - Configura `setInterval(updateCounters, 5000)` (polling cada 5s)
-3. Cada ciclo de polling:
-   - Fetch a `BACKEND_API_URL`
-   - Compara valores actuales con anteriores
-   - Si hay cambios: anima contador + muestra indicador visual
-   - Calcula pendientes
+1. `Vite` bundle se sirve desde GitHub Pages con base `/survey-tracker/`
+2. `DashboardPage` monta `useSurveyCounts` hook con polling cada 5s
+3. Cada ciclo:
+   - Fetch a `VITE_API_BASE_URL/get-counts`
+   - Actualiza estado vía TanStack Query
+   - `DashboardPanel` recibe nuevos counts y renderiza `DashboardCard`
+   - Cada card anima el contador con `requestAnimationFrame`
 
 ## Reset de Contadores
 
@@ -62,21 +77,24 @@ El dashboard incluye un botón **"Resetear Contadores"** que permite reiniciar `
 
 | Dependencia | Tipo | Propósito |
 |------------|------|-----------|
-| Tailwind CSS (CDN) | CSS framework | Estilos utility-first (vía CDN en `<script>`) |
-| Backend API (Vercel) | Externa | Fuente de datos (`BACKEND_API_URL`) |
+| react + react-dom | Runtime | UI framework |
+| @tanstack/react-query | Runtime | Data fetching + polling + mutations |
+| @tanstack/react-query-devtools | Dev | Debug de queries |
+| react-router-dom | Runtime | (futuro) Routing |
+| zod | Runtime | Validación de entorno |
+| @tailwindcss/vite | Build | Plugin Tailwind para Vite |
+| @vitejs/plugin-react | Build | Plugin React para Vite |
+| vite | Build | Bundler + dev server |
+| typescript | Build | Type checking |
+| vitest + @testing-library/react | Dev | Testing |
 
 ## Configuration
 
-- **Backend URL**: Configurada en `public/js/app.js` como constante `BACKEND_API_URL`
-- **Polling interval**: 5000ms (5 segundos), configurado en `setInterval()`
-- **Animation duration**: 1000ms, configurado en `animateCounter()`
-- **Indicator visibility**: 3000ms para el indicador de nueva respuesta
+- **Backend URL**: `VITE_API_BASE_URL` (variable de entorno o default `https://qr-smoky-theta.vercel.app/api`)
+- **Polling interval**: 5000ms (configurable vía `VITE_POLL_INTERVAL`)
+- **Base path**: `/survey-tracker/` (para GitHub Pages)
 
-## Future Architecture (React + Vite + Feature-Based)
-
-El frontend está siendo migrado de HTML/CSS/JS estático a una SPA React con arquitectura feature-based.
-
-### Nueva Estructura
+## Estructura (Feature-Based)
 
 ```
 src/
@@ -84,21 +102,25 @@ src/
 │   ├── App.tsx        # Root component with providers
 │   └── layouts/       # MainLayout, Header, Footer
 ├── features/          # Feature modules (autónomos)
-│   ├── dashboard/     #   pages, components, hooks, services, types
-│   ├── qr/            #   (future)
-│   ├── surveys/       #   (future)
-│   └── analytics/     #   (future)
+│   └── dashboard/     #   pages, components, hooks, services, types
 ├── shared/            # Cross-cutting concerns
-│   ├── components/    #   ErrorBoundary, UI primitives
-│   ├── hooks/         #   Shared hooks
+│   ├── components/    #   ErrorBoundary
 │   ├── services/      #   api client
-│   ├── utils/         #   counterAnimation
 │   ├── validators/    #   env validation (Zod)
-│   └── types/         #   Shared types
-├── assets/            # Static assets (imported by Vite)
-├── styles/            # Global CSS + Tailwind
+│   └── styles/        #   Global CSS + Tailwind
+├── assets/            # Static assets (QRCode.png)
 └── test/              # Test setup
 ```
+
+## Reset de Contadores
+
+El dashboard incluye un botón **"Resetear Contadores"** (fondo negro, texto blanco) debajo del código QR.
+
+**Flujo:**
+1. Usuario hace clic en "Resetear Contadores"
+2. Confirmación: "¿Resetear todos los contadores a cero?"
+3. `POST /api/reset-counts` → Firebase resetea a 0
+4. TanStack Query invalida la caché y actualiza automáticamente
 
 ### Stack
 

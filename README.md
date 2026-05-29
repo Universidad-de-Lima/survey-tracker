@@ -28,7 +28,9 @@ Sistema de monitoreo en tiempo real para encuestas de satisfacción universitari
 │  (polling cada 5s)        │                           │
 │  ├ Escaneos Totales       │                           │
 │  ├ Encuestas Completadas  │                           │
-│  └ Pendientes             │                           │
+│  ├ Pendientes             │                           │
+│  └ Resetear Contadores    │ ──POST /api/reset-counts──>│
+│    (botón negro)          │                           │
 └──────────────────────────┘                           │
         │                                              │
         └──────────────────────────────────────────────┘
@@ -38,12 +40,12 @@ Sistema de monitoreo en tiempo real para encuestas de satisfacción universitari
 
 | Fase | Estado | Descripción |
 |------|--------|-------------|
-| FASE 1 | ✅ Completa | Monorepo + pnpm + Turbo + TypeScript base + ESLint + Prettier + Husky |
-| FASE 2 | 🔄 Pendiente | Frontend: Vite + React + TanStack Query + Feature-Based Architecture |
-| FASE 3 | ⏳ Pendiente | Backend: Fastify + Clean Architecture + Prisma + PostgreSQL |
-| FASE 4 | ⏳ Pendiente | Testing: Vitest + Testing Library + Playwright + Supertest |
-| FASE 5 | ⏳ Pendiente | CI/CD: GitHub Actions workflows |
-| FASE 6 | ⏳ Pendiente | Observabilidad + Seguridad + Performance |
+| FASE 1 | ✅ Completa | Monorepo + pnpm + Turbo + TypeScript base + ESLint |
+| FASE 2 | ✅ Completa | Frontend: Vite + React + TanStack Query + Feature-Based Architecture |
+| FASE 3 | ✅ Completa | Backend: Fastify + Clean Architecture + módulos QR/Surveys/Webhooks/Reset |
+| FASE 4 | ✅ Completa | Testing: Vitest + Testing Library + DashboardCard test |
+| FASE 5 | ✅ Completa | CI/CD: GitHub Actions (lint, type-check, test, build, deploy) |
+| FASE 6 | ⏳ Pendiente | Observabilidad + Seguridad + Performance + PostgreSQL + Prisma |
 
 ## Repository Structure
 
@@ -55,8 +57,8 @@ survey-tracker/
 │   │   │   ├── get-counts.js     # GET: retorna contadores actuales
 │   │   │   ├── qr-scan.js        # GET: registra escaneo y redirige a Zoho
 │   │   │   └── zoho-webhook.js   # POST: recibe notificación de encuesta completada
-│   │   └── src/modules/reset/# Reset counters (Fastify, protegido con API Key)
-│   │   ├── src/              # Future Fastify backend (TypeScript)
+│   │   ├── src/modules/reset/# Reset counters (Fastify, sin API Key)
+│   │   ├── src/              # Fastify backend (TypeScript)
 │   │   ├── package.json
 │   │   └── vercel.json
 │   └── frontend/             # Dashboard → Migrating to React + Vite
@@ -83,13 +85,15 @@ survey-tracker/
 
 | Componente | Tecnología | Rol |
 |-----------|-----------|-----|
-| Runtime Backend | Node.js 18+ (Vercel) | Ejecución serverless |
+| Runtime Backend | Node.js 22 (Vercel) | Ejecución serverless + Fastify |
 | Firebase Admin SDK | v11.x | Acceso a Realtime Database |
 | Base de datos | Firebase Realtime Database | Almacén de contadores en tiempo real |
-| Frontend | HTML5 + CSS3 + JavaScript ES6 | Dashboard estático |
-| Estilos | Tailwind CSS (CDN) | Framework CSS utility-first |
-| Despliegue Backend | Vercel (serverless functions) | Hosting de APIs |
+| Frontend | React 18 + Vite 5 + TypeScript 5.4 | SPA dashboard |
+| Estilos | Tailwind CSS 4 | Framework CSS utility-first |
+| State Management | TanStack Query 5 | Data fetching + polling |
+| Despliegue Backend | Vercel (auto-deploy) | Hosting de APIs |
 | Despliegue Frontend | GitHub Pages | Hosting estático |
+| CI/CD | GitHub Actions | Lint, type-check, test, build, deploy |
 
 ## Data Flow
 
