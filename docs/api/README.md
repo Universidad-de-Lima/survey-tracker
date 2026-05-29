@@ -9,9 +9,9 @@ See `apps/backend/api/README.md` for detailed API contracts.
 | GET | `/api/qr-scan` | Register QR scan + redirect to Zoho |
 | POST | `/api/zoho-webhook` | Receive Zoho survey completion webhook |
 | GET | `/api/get-counts` | Get current scan/completion counters |
-| POST | `/api/reset-counts` | Reset counters to zero (requires `Authorization: Bearer <key>`) |
+| POST | `/api/reset-counts` | Reset counters to zero (sin auth, solo confirmación frontend) |
 
-## Endpoints protegidos
+## Endpoints
 
 ### `POST /api/reset-counts`
 
