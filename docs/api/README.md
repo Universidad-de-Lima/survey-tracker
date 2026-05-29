@@ -19,7 +19,6 @@ Resetea `scanned` y `completed` a `0` en Firebase Realtime Database.
 
 **Headers:**
 ```
-Authorization: Bearer <RESET_API_KEY>
 Content-Type: application/json
 ```
 
@@ -34,14 +33,7 @@ Content-Type: application/json
 }
 ```
 
-**Response (401):**
-```json
-{
-  "error": "Invalid or missing API key",
-  "code": "UNAUTHORIZED"
-}
-```
-
-**Configuración:**
-- La `RESET_API_KEY` se define como variable de entorno en Vercel
-- El frontend tiene un botón "Resetear Contadores" que solicita la key antes de ejecutar
+**Frontend:**
+- El dashboard tiene un botón negro "Resetear Contadores" debajo del código QR
+- Al hacer clic, muestra confirmación: "¿Resetear todos los contadores a cero?"
+- Al confirmar, envía `POST /api/reset-counts` y actualiza los contadores automáticamente

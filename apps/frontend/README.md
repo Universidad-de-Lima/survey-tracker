@@ -53,13 +53,10 @@ app.js ──GET cada 5s──> /api/get-counts ──> Firebase RTDB
 El dashboard incluye un botón **"Resetear Contadores"** que permite reiniciar `scanned` y `completed` a cero.
 
 **Flujo:**
-1. Usuario hace clic en "Resetear Contadores"
-2. Se muestra un formulario de confirmación solicitando la API Key
-3. Al confirmar, se envía `POST /api/reset-counts` con header `Authorization: Bearer <key>`
+1. Usuario hace clic en "Resetear Contadores" (botón negro debajo del QR)
+2. Se muestra confirmación: "¿Resetear todos los contadores a cero?"
+3. Al confirmar, se envía `POST /api/reset-counts`
 4. En éxito: los contadores se actualizan automáticamente vía TanStack Query
-5. En error (401): se muestra mensaje de API Key inválida
-
-**Seguridad:** La API Key se configura como variable de entorno `RESET_API_KEY` en Vercel.
 
 ## Dependencies
 

@@ -1,5 +1,4 @@
 import { DashboardCard } from './DashboardCard';
-import { ResetButton } from './ResetButton';
 
 import type { DashboardCounts } from '@/features/dashboard/types';
 
@@ -36,9 +35,6 @@ export function DashboardPanel({ counts, isLoading }: DashboardPanelProps) {
         <DashboardCard label="Encuestas Completadas" value={completed} color="green" />
         <DashboardCard label="Encuestados Pendientes" value={pending} color="orange" />
       </aside>
-      <div className="flex justify-center">
-        <ResetButton />
-      </div>
     </>
   );
 }

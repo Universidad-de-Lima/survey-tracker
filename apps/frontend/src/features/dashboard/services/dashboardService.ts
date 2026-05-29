@@ -12,10 +12,6 @@ export async function fetchSurveyCounts(): Promise<DashboardCounts> {
   };
 }
 
-export async function resetSurveyCounts(apiKey: string): Promise<ResetCountsResponse> {
-  return apiClient.post<ResetCountsResponse>('/reset-counts', {}, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-  });
+export async function resetSurveyCounts(): Promise<ResetCountsResponse> {
+  return apiClient.post<ResetCountsResponse>('/reset-counts', {});
 }

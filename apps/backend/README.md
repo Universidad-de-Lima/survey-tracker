@@ -25,7 +25,7 @@ Capa de servidor dentro del sistema `survey-tracker`. Actúa como intermediario 
 | GET | `/api/qr-scan` | `api/qr-scan.js` | Incrementa contador de escaneos y redirige a Zoho Survey |
 | POST | `/api/zoho-webhook` | `api/zoho-webhook.js` | Recibe notificación de encuesta completada desde Zoho |
 | GET | `/api/get-counts` | `api/get-counts.js` | Retorna `{ scanned, completed }` al frontend |
-| POST | `/api/reset-counts` | Fastify `src/modules/reset/` | Resetea contadores a cero (requiere `Authorization: Bearer <key>`) |
+| POST | `/api/reset-counts` | Fastify `src/modules/reset/` | Resetea contadores a cero |
 
 Para contratos detallados de cada endpoint, ver `api/README.md`.
 
@@ -65,7 +65,7 @@ Frontend ──GET──> /api/get-counts ──once("value")──> Firebase: s
 | `FIREBASE_SERVICE_ACCOUNT_KEY` | string (JSON minificado) | Credenciales de cuenta de servicio Firebase |
 | `FIREBASE_DATABASE_URL` | string (URL) | URL de Firebase Realtime Database |
 | `ZOHO_SURVEY_URL` | string (URL) | URL de redirección post-escaneo QR |
-| `RESET_API_KEY` | string | API Key para autenticar el endpoint `/api/reset-counts` |
+
 
 ### Configuración de Deploy (`vercel.json`)
 

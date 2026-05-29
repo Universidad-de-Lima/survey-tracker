@@ -1,5 +1,6 @@
 import { DashboardPanel } from '@/features/dashboard/components/DashboardPanel';
 import { QRCodeSection } from '@/features/dashboard/components/QRCodeSection';
+import { ResetButton } from '@/features/dashboard/components/ResetButton';
 import { useSurveyCounts } from '@/features/dashboard/hooks/useSurveyCounts';
 
 export function DashboardPage() {
@@ -22,6 +23,10 @@ export function DashboardPage() {
       )}
 
       <QRCodeSection />
+
+      <div className="w-full max-w-lg mt-4">
+        <ResetButton />
+      </div>
     </>
   );
 }
