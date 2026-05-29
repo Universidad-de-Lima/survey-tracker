@@ -1,4 +1,5 @@
 import { DashboardCard } from './DashboardCard';
+import { ResetButton } from './ResetButton';
 
 import type { DashboardCounts } from '@/features/dashboard/types';
 
@@ -29,10 +30,15 @@ export function DashboardPanel({ counts, isLoading }: DashboardPanelProps) {
   const pending = counts?.pending ?? 0;
 
   return (
-    <aside className="w-full flex flex-col sm:flex-row justify-center items-center gap-4 mb-8">
-      <DashboardCard label="Escaneos Totales" value={scanned} color="blue" />
-      <DashboardCard label="Encuestas Completadas" value={completed} color="green" />
-      <DashboardCard label="Encuestados Pendientes" value={pending} color="orange" />
-    </aside>
+    <>
+      <aside className="w-full flex flex-col sm:flex-row justify-center items-center gap-4 mb-8">
+        <DashboardCard label="Escaneos Totales" value={scanned} color="blue" />
+        <DashboardCard label="Encuestas Completadas" value={completed} color="green" />
+        <DashboardCard label="Encuestados Pendientes" value={pending} color="orange" />
+      </aside>
+      <div className="flex justify-center">
+        <ResetButton />
+      </div>
+    </>
   );
 }

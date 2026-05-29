@@ -19,6 +19,9 @@ const envSchema = z.object({
   // Rate Limiting
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+
+  // Reset API Key
+  RESET_API_KEY: z.string().min(1, 'RESET_API_KEY is required').default('dev-reset-key'),
 });
 
 function parseEnv(): z.infer<typeof envSchema> {

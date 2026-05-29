@@ -17,3 +17,8 @@ export interface UseSurveyCountsResult {
   isError: boolean;
   error: Error | null;
 }
+
+export interface ResetCountsResponse {
+  message: string;
+  previousCounts: SurveyCounts;
+}

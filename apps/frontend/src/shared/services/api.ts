@@ -32,10 +32,15 @@ export const apiClient = {
     return request<T>(endpoint);
   },
 
-  post<T>(endpoint: string, body: unknown): Promise<T> {
+  post<T>(endpoint: string, body: unknown, extraOptions?: RequestInit): Promise<T> {
     return request<T>(endpoint, {
       method: 'POST',
       body: JSON.stringify(body),
+      ...extraOptions,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(extraOptions?.headers as Record<string, string>),
+      },
     });
   },
 };

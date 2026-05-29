@@ -1,4 +1,4 @@
-import type { GetCountsResponse } from '@survey-tracker/shared-types';
+import type { GetCountsResponse, ResetCountsResponse } from '@survey-tracker/shared-types';
 
 import type { DashboardCounts } from '@/features/dashboard/types';
 import { apiClient } from '@/shared/services/api';
@@ -10,4 +10,12 @@ export async function fetchSurveyCounts(): Promise<DashboardCounts> {
     completed: data.completed,
     pending: Math.max(0, data.scanned - data.completed),
   };
+}
+
+export async function resetSurveyCounts(apiKey: string): Promise<ResetCountsResponse> {
+  return apiClient.post<ResetCountsResponse>('/reset-counts', {}, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  });
 }

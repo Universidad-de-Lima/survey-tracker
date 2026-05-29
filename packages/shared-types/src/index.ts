@@ -39,6 +39,12 @@ export type QrScanResponse = never; // HTTP 302 redirect, no body
 
 export type ZohoWebhookSuccessResponse = { message: string };
 
+// --- Reset Counts ---
+export interface ResetCountsResponse {
+  message: string;
+  previousCounts: SurveyCounts;
+}
+
 // --- Dashboard ---
 export interface DashboardState {
   scanned: number;

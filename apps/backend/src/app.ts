@@ -5,6 +5,7 @@ import { registerCors } from '@/middleware/cors';
 import { errorHandler } from '@/middleware/error-handler';
 import { registerRateLimit } from '@/middleware/rate-limit';
 import { qrRoutes } from '@/modules/qr/qr.routes';
+import { resetRoutes } from '@/modules/reset/reset.routes';
 import { surveyRoutes } from '@/modules/surveys/survey.routes';
 import { webhookRoutes } from '@/modules/webhooks/webhook.routes';
 import { logger } from '@/shared/utils/logger';
@@ -32,6 +33,7 @@ export async function buildApp() {
   await app.register(qrRoutes);
   await app.register(webhookRoutes);
   await app.register(surveyRoutes);
+  await app.register(resetRoutes);
 
   logger.info('Fastify app built successfully', {
     environment: env.NODE_ENV,

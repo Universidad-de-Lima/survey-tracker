@@ -55,6 +55,7 @@ survey-tracker/
 │   │   │   ├── get-counts.js     # GET: retorna contadores actuales
 │   │   │   ├── qr-scan.js        # GET: registra escaneo y redirige a Zoho
 │   │   │   └── zoho-webhook.js   # POST: recibe notificación de encuesta completada
+│   │   └── src/modules/reset/# Reset counters (Fastify, protegido con API Key)
 │   │   ├── src/              # Future Fastify backend (TypeScript)
 │   │   ├── package.json
 │   │   └── vercel.json
