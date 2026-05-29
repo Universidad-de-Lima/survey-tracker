@@ -20,6 +20,10 @@
       "dest": "api/get-counts.js"
     },
     {
+      "src": "/api/reset-counts",
+      "dest": "api/reset-counts.js"
+    },
+    {
       "src": "/api/health",
       "dest": "api/get-counts.js"
     }
