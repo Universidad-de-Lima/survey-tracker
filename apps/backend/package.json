@@ -2,6 +2,7 @@
   "name": "@survey-tracker/backend",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Backend serverless para monitoreo de encuestas Zoho",
   "main": "api/get-counts.js",
   "scripts": {

@@ -1,4 +1,4 @@
-const { getFirebaseDb } = require('../lib/firebase');
+import { getFirebaseDb } from '../lib/firebase.js';
 
 const db = getFirebaseDb();
 
@@ -6,10 +6,16 @@ const SURVEY_COUNTS_REF = 'survey_counts';
 const PROCESSED_RESPONSES_REF = 'processed_responses';
 
 function sanitizeKey(key) {
-  return String(key).replace(/[.#$\[\]/]/g, '_');
+  return String(key)
+    .replace(/\./g, '_')
+    .replace(/#/g, '_')
+    .replace(/\$/g, '_')
+    .replace(/\[/g, '_')
+    .replace(/\]/g, '_')
+    .replace(/\//g, '_');
 }
 
-module.exports = async (req, res) => {
+export default async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Webhook-Secret');

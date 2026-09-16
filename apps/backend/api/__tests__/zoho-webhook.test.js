@@ -1,4 +1,4 @@
-const { beforeEach, describe, expect, it, vi } = require('vitest');
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const transactionMock = vi.fn();
 const setMock = vi.fn();
@@ -6,11 +6,11 @@ const onceMock = vi.fn();
 const refMock = vi.fn();
 const databaseMock = { ref: refMock };
 
-vi.mock('../../lib/firebase', () => ({
+vi.mock('../../lib/firebase.js', () => ({
   getFirebaseDb: vi.fn(() => databaseMock),
 }));
 
-const zohoWebhook = require('../zoho-webhook');
+import zohoWebhook from '../zoho-webhook.js';
 
 function createRes() {
   return {

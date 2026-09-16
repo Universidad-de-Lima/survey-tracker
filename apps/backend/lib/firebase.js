@@ -1,6 +1,6 @@
-const admin = require('firebase-admin');
+import admin from 'firebase-admin';
 
-function getFirebaseDb() {
+export function getFirebaseDb() {
   if (!admin.apps.length) {
     admin.initializeApp({
       credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
@@ -9,5 +9,3 @@ function getFirebaseDb() {
   }
   return admin.database();
 }
-
-module.exports = { getFirebaseDb };

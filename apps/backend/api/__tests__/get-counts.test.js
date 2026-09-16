@@ -1,14 +1,14 @@
-const { beforeEach, describe, expect, it, vi } = require('vitest');
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const refMock = vi.fn();
 const onceMock = vi.fn();
 const databaseMock = { ref: refMock };
 
-vi.mock('../../lib/firebase', () => ({
+vi.mock('../../lib/firebase.js', () => ({
   getFirebaseDb: vi.fn(() => databaseMock),
 }));
 
-const getCounts = require('../get-counts');
+import getCounts from '../get-counts.js';
 
 function createRes() {
   return {
