@@ -1,14 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-let databaseMock;
-let transactionMock;
-let refMock;
+const dbStore = { current: null };
 
 vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: () => databaseMock,
+  getFirebaseDb: () => dbStore.current,
 }));
 
 import qrScan from '../qr-scan.js';
+
+let transactionMock;
+let refMock;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  process.env.ZOHO_SURVEY_URL = 'https://survey.zohopublic.com/zs/ZKC54z';
+  transactionMock = vi.fn();
+  refMock = vi.fn();
+  dbStore.current = { ref: (path) => ({ transaction: transactionMock }) };
+});
 
 function createRes() {
   return {
@@ -40,14 +49,6 @@ function createRes() {
 }
 
 describe('GET /api/qr-scan', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    process.env.ZOHO_SURVEY_URL = 'https://survey.zohopublic.com/zs/ZKC54z';
-    transactionMock = vi.fn();
-    refMock = vi.fn();
-    databaseMock = { ref: refMock };
-  });
-
   it('increments scanned count and redirects to Zoho survey', async () => {
     transactionMock.mockImplementation((updateFn) => updateFn(5));
     refMock.mockReturnValue({ transaction: transactionMock });

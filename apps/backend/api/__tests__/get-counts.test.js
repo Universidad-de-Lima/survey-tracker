@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-let databaseMock;
-let refMock;
-let onceMock;
+const dbStore = { current: null };
 
 vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: () => databaseMock,
+  getFirebaseDb: () => dbStore.current,
 }));
 
 import getCounts from '../get-counts.js';
+
+let refMock;
+let onceMock;
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  refMock = vi.fn();
+  onceMock = vi.fn();
+  dbStore.current = { ref: (path) => ({ once: () => onceMock() }) };
+});
 
 function createRes() {
   return {
@@ -34,13 +42,6 @@ function createRes() {
 }
 
 describe('GET /api/get-counts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    refMock = vi.fn();
-    onceMock = vi.fn();
-    databaseMock = { ref: refMock };
-  });
-
   it('returns current counts on GET', async () => {
     const counts = { scanned: 10, completed: 7 };
     onceMock.mockResolvedValue({ val: () => counts });

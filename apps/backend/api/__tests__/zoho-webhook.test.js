@@ -1,16 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-let databaseMock;
+const dbStore = { current: null };
+
+vi.mock('../../lib/firebase.js', () => ({
+  getFirebaseDb: () => dbStore.current,
+}));
+
+import zohoWebhook from '../zoho-webhook.js';
+
 let transactionMock;
 let setMock;
 let onceMock;
 let refMock;
 
-vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: () => databaseMock,
-}));
-
-import zohoWebhook from '../zoho-webhook.js';
+beforeEach(() => {
+  vi.clearAllMocks();
+  process.env.ZOHO_WEBHOOK_SECRET = 'test-secret';
+  transactionMock = vi.fn();
+  setMock = vi.fn();
+  onceMock = vi.fn();
+  refMock = vi.fn();
+  dbStore.current = { ref: (path) => ({ once: () => ({ exists: () => onceMock(), val: () => ({ processedAt: '2024-01-01' }) }), transaction: transactionMock, set: setMock }) };
+});
 
 function createRes() {
   return {
@@ -36,16 +47,6 @@ function createRes() {
 }
 
 describe('POST /api/zoho-webhook', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    process.env.ZOHO_WEBHOOK_SECRET = 'test-secret';
-    transactionMock = vi.fn();
-    setMock = vi.fn();
-    onceMock = vi.fn();
-    refMock = vi.fn();
-    databaseMock = { ref: refMock };
-  });
-
   it('accepts request when webhook secret is not configured', async () => {
     delete process.env.ZOHO_WEBHOOK_SECRET;
     onceMock.mockResolvedValue({ exists: () => false });

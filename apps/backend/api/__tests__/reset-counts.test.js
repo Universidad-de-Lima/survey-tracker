@@ -1,15 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-let databaseMock;
+const dbStore = { current: null };
+
+vi.mock('../../lib/firebase.js', () => ({
+  getFirebaseDb: () => dbStore.current,
+}));
+
+import resetCounts from '../reset-counts.js';
+
 let setMock;
 let onceMock;
 let refMock;
 
-vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: () => databaseMock,
-}));
-
-import resetCounts from '../reset-counts.js';
+beforeEach(() => {
+  vi.clearAllMocks();
+  setMock = vi.fn();
+  onceMock = vi.fn();
+  refMock = vi.fn();
+  dbStore.current = { ref: (path) => ({ once: () => ({ val: () => onceMock() }), set: setMock }) };
+});
 
 function createRes() {
   return {
@@ -35,14 +44,6 @@ function createRes() {
 }
 
 describe('POST /api/reset-counts', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    setMock = vi.fn();
-    onceMock = vi.fn();
-    refMock = vi.fn();
-    databaseMock = { ref: refMock };
-  });
-
   it('resets counts to zero and returns previous values', async () => {
     const previous = { scanned: 10, completed: 7 };
     onceMock.mockResolvedValue({ val: () => previous });
