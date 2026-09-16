@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const dbStore = { current: null };
+globalThis.dbStore = { current: null };
 
 vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: () => dbStore.current,
+  getFirebaseDb: () => globalThis.dbStore.current,
 }));
 
 import zohoWebhook from '../zoho-webhook.js';
@@ -20,7 +20,7 @@ beforeEach(() => {
   setMock = vi.fn();
   onceMock = vi.fn();
   refMock = vi.fn();
-  dbStore.current = { ref: (path) => ({ once: () => ({ exists: () => onceMock(), val: () => ({ processedAt: '2024-01-01' }) }), transaction: transactionMock, set: setMock }) };
+  globalThis.dbStore.current = { ref: (path) => ({ once: () => ({ exists: () => onceMock(), val: () => ({ processedAt: '2024-01-01' }) }), transaction: transactionMock, set: setMock }) };
 });
 
 function createRes() {

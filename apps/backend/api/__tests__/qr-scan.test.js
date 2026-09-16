@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const dbStore = { current: null };
+globalThis.dbStore = { current: null };
 
 vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: () => dbStore.current,
+  getFirebaseDb: () => globalThis.dbStore.current,
 }));
 
 import qrScan from '../qr-scan.js';
@@ -16,7 +16,7 @@ beforeEach(() => {
   process.env.ZOHO_SURVEY_URL = 'https://survey.zohopublic.com/zs/ZKC54z';
   transactionMock = vi.fn();
   refMock = vi.fn();
-  dbStore.current = { ref: (path) => ({ transaction: transactionMock }) };
+  globalThis.dbStore.current = { ref: (path) => ({ transaction: transactionMock }) };
 });
 
 function createRes() {

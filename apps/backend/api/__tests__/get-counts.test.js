@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const dbStore = { current: null };
+globalThis.dbStore = { current: null };
 
 vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: () => dbStore.current,
+  getFirebaseDb: () => globalThis.dbStore.current,
 }));
 
 import getCounts from '../get-counts.js';
@@ -15,7 +15,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   refMock = vi.fn();
   onceMock = vi.fn();
-  dbStore.current = { ref: (path) => ({ once: () => onceMock() }) };
+  globalThis.dbStore.current = { ref: (path) => ({ once: () => onceMock() }) };
 });
 
 function createRes() {
