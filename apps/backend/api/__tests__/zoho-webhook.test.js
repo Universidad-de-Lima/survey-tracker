@@ -41,15 +41,28 @@ describe('POST /api/zoho-webhook', () => {
     process.env.ZOHO_WEBHOOK_SECRET = 'test-secret';
   });
 
-  it('rejects request when webhook secret is missing', async () => {
+  it('accepts request when webhook secret is not configured', async () => {
     delete process.env.ZOHO_WEBHOOK_SECRET;
+    onceMock.mockResolvedValue({ exists: () => false });
+    transactionMock.mockImplementation((updateFn) => updateFn(7));
+    setMock.mockResolvedValue();
+    refMock.mockReturnValue({ once: onceMock, transaction: transactionMock, set: setMock });
 
-    const req = { method: 'POST', headers: {}, body: {} };
+    const req = {
+      method: 'POST',
+      headers: {},
+      body: {
+        response_status: 'COMPLETED',
+        webhook_event: 'response_completed',
+        response_id: 'resp-123',
+      },
+    };
     const res = createRes();
 
     await zohoWebhook(req, res);
 
-    expect(res.statusCode).toBe(500);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.completed).toBe(true);
   });
 
   it('rejects request with invalid secret', async () => {

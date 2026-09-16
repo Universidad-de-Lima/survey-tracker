@@ -27,16 +27,14 @@ module.exports = async (req, res) => {
   const expectedSecret = process.env.ZOHO_WEBHOOK_SECRET;
   const providedSecret = req.headers['x-webhook-secret'];
 
-  if (!expectedSecret) {
-    console.error('ZOHO_WEBHOOK_SECRET no está configurado.');
-    res.status(500).json({ error: 'Webhook secret not configured.' });
-    return;
-  }
-
-  if (providedSecret !== expectedSecret) {
-    console.warn('Webhook rechazado: secreto inválido.');
-    res.status(401).json({ error: 'Unauthorized: invalid webhook secret.' });
-    return;
+  if (expectedSecret) {
+    if (providedSecret !== expectedSecret) {
+      console.warn('Webhook rechazado: secreto inválido.');
+      res.status(401).json({ error: 'Unauthorized: invalid webhook secret.' });
+      return;
+    }
+  } else {
+    console.warn('ZOHO_WEBHOOK_SECRET no está configurado. Webhook aceptado sin autenticación.');
   }
 
   console.log('Webhook de Zoho recibido:', req.body);
