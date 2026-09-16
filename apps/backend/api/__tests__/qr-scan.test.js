@@ -1,0 +1,70 @@
+const { beforeEach, describe, expect, it, vi } = require('vitest');
+
+const transactionMock = vi.fn();
+const refMock = vi.fn();
+const databaseMock = { ref: refMock };
+
+vi.mock('../../lib/firebase', () => ({
+  getFirebaseDb: vi.fn(() => databaseMock),
+}));
+
+const qrScan = require('../qr-scan');
+
+function createRes() {
+  return {
+    statusCode: undefined,
+    headers: {},
+    body: undefined,
+    redirectUrl: undefined,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    setHeader(key, value) {
+      this.headers[key] = value;
+      return this;
+    },
+    json(data) {
+      this.body = data;
+      return this;
+    },
+    writeHead(code, headers) {
+      this.statusCode = code;
+      this.headers = { ...this.headers, ...headers };
+      return this;
+    },
+    end() {
+      return this;
+    },
+  };
+}
+
+describe('GET /api/qr-scan', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.ZOHO_SURVEY_URL = 'https://survey.zohopublic.com/zs/ZKC54z';
+  });
+
+  it('increments scanned count and redirects to Zoho survey', async () => {
+    transactionMock.mockImplementation((updateFn) => updateFn(5));
+    refMock.mockReturnValue({ transaction: transactionMock });
+
+    const req = { method: 'GET' };
+    const res = createRes();
+
+    await qrScan(req, res);
+
+    expect(refMock).toHaveBeenCalledWith('survey_counts/scanned');
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.Location).toBe(process.env.ZOHO_SURVEY_URL);
+  });
+
+  it('returns 405 for unsupported methods', async () => {
+    const req = { method: 'DELETE' };
+    const res = createRes();
+
+    await qrScan(req, res);
+
+    expect(res.statusCode).toBe(405);
+  });
+});
