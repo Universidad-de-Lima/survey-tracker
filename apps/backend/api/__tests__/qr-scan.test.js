@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const transactionMock = vi.fn();
-const refMock = vi.fn();
-const databaseMock = { ref: refMock };
+let databaseMock;
+let transactionMock;
+let refMock;
 
 vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: vi.fn(() => databaseMock),
+  getFirebaseDb: () => databaseMock,
 }));
 
 import qrScan from '../qr-scan.js';
@@ -43,6 +43,9 @@ describe('GET /api/qr-scan', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.ZOHO_SURVEY_URL = 'https://survey.zohopublic.com/zs/ZKC54z';
+    transactionMock = vi.fn();
+    refMock = vi.fn();
+    databaseMock = { ref: refMock };
   });
 
   it('increments scanned count and redirects to Zoho survey', async () => {

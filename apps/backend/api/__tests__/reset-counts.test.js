@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const setMock = vi.fn();
-const onceMock = vi.fn();
-const refMock = vi.fn();
-const databaseMock = { ref: refMock };
+let databaseMock;
+let setMock;
+let onceMock;
+let refMock;
 
 vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: vi.fn(() => databaseMock),
+  getFirebaseDb: () => databaseMock,
 }));
 
 import resetCounts from '../reset-counts.js';
@@ -37,6 +37,10 @@ function createRes() {
 describe('POST /api/reset-counts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setMock = vi.fn();
+    onceMock = vi.fn();
+    refMock = vi.fn();
+    databaseMock = { ref: refMock };
   });
 
   it('resets counts to zero and returns previous values', async () => {

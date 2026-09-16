@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const transactionMock = vi.fn();
-const setMock = vi.fn();
-const onceMock = vi.fn();
-const refMock = vi.fn();
-const databaseMock = { ref: refMock };
+let databaseMock;
+let transactionMock;
+let setMock;
+let onceMock;
+let refMock;
 
 vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: vi.fn(() => databaseMock),
+  getFirebaseDb: () => databaseMock,
 }));
 
 import zohoWebhook from '../zoho-webhook.js';
@@ -39,6 +39,11 @@ describe('POST /api/zoho-webhook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.ZOHO_WEBHOOK_SECRET = 'test-secret';
+    transactionMock = vi.fn();
+    setMock = vi.fn();
+    onceMock = vi.fn();
+    refMock = vi.fn();
+    databaseMock = { ref: refMock };
   });
 
   it('accepts request when webhook secret is not configured', async () => {

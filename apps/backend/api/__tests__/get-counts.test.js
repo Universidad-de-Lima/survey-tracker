@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const refMock = vi.fn();
-const onceMock = vi.fn();
-const databaseMock = { ref: refMock };
+let databaseMock;
+let refMock;
+let onceMock;
 
 vi.mock('../../lib/firebase.js', () => ({
-  getFirebaseDb: vi.fn(() => databaseMock),
+  getFirebaseDb: () => databaseMock,
 }));
 
 import getCounts from '../get-counts.js';
@@ -36,6 +36,9 @@ function createRes() {
 describe('GET /api/get-counts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    refMock = vi.fn();
+    onceMock = vi.fn();
+    databaseMock = { ref: refMock };
   });
 
   it('returns current counts on GET', async () => {
