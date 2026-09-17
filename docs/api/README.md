@@ -67,23 +67,29 @@ X-Webhook-Secret: <ZOHO_WEBHOOK_SECRET>
 
 ### `GET /api/get-counts`
 
-Retorna los contadores actuales para el dashboard frontend.
+Retorna los contadores de una sesión para el dashboard frontend.
 
 **Input:**
 - Método: `GET` (también acepta `OPTIONS`)
+- Parámetro opcional `?s=<sesion>` (por defecto `default`)
 
 **Output:**
 - Success: HTTP 200
 ```json
 {
   "scanned": 42,
-  "completed": 35
+  "completed": 35,
+  "pending": 7,
+  "sessionId": "salon-302-20set-1100"
 }
 ```
+- Método no permitido: HTTP 405 `{ error: "Método no permitido." }`
 - Error: HTTP 500 `{ error: "Error interno del servidor al obtener los contadores." }`
 - OPTIONS: HTTP 204
 
-**Side effects:** Ninguno. Solo lectura de Firebase.
+**Side effects:** Ninguno. Solo lectura de Firebase (`sessions/<sesion>`).
+
+**Nota:** una sesión que todavía no ha empezado devuelve `{ scanned: 0, completed: 0, pending: 0 }` sin error, en lugar de fallar.
 
 ---
 

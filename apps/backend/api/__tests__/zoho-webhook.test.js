@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-let transactionMock;
 let setMock;
 let onceMock;
+let transactionMock;
+let removeMock;
 let refMock;
 
 // El endpoint captura la instancia de Firebase en el ámbito del módulo, durante la
@@ -17,6 +18,7 @@ globalThis.dbStore = {
 
 vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
+  incrementBy: (amount) => ({ __increment__: amount }),
 }));
 
 const { default: zohoWebhook } = await import('../zoho-webhook.js');
@@ -24,10 +26,16 @@ const { default: zohoWebhook } = await import('../zoho-webhook.js');
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.ZOHO_WEBHOOK_SECRET = 'test-secret';
-  transactionMock = vi.fn();
-  setMock = vi.fn();
+  setMock = vi.fn().mockResolvedValue();
   onceMock = vi.fn();
-  refMock = vi.fn();
+  transactionMock = vi.fn().mockResolvedValue({ committed: true });
+  removeMock = vi.fn().mockResolvedValue();
+  refMock = vi.fn(() => ({
+    set: setMock,
+    once: onceMock,
+    transaction: transactionMock,
+    remove: removeMock,
+  }));
 });
 
 function createRes() {
@@ -53,19 +61,24 @@ function createRes() {
   };
 }
 
+function completedRequest(extra = {}) {
+  return {
+    method: 'POST',
+    headers: { 'x-webhook-secret': 'test-secret' },
+    body: {
+      response_status: 'COMPLETED',
+      webhook_event: 'response_completed',
+      response_id: 'resp-123',
+    },
+    ...extra,
+  };
+}
+
 describe('POST /api/zoho-webhook', () => {
   it('returns 503 when the webhook secret is not configured (fail closed)', async () => {
     delete process.env.ZOHO_WEBHOOK_SECRET;
 
-    const req = {
-      method: 'POST',
-      headers: {},
-      body: {
-        response_status: 'COMPLETED',
-        webhook_event: 'response_completed',
-        response_id: 'resp-123',
-      },
-    };
+    const req = completedRequest({ headers: {} });
     const res = createRes();
 
     await zohoWebhook(req, res);
@@ -76,38 +89,28 @@ describe('POST /api/zoho-webhook', () => {
   });
 
   it('returns 401 when the secret header is missing', async () => {
-    const req = {
-      method: 'POST',
-      headers: {},
-      body: {
-        response_status: 'COMPLETED',
-        webhook_event: 'response_completed',
-        response_id: 'resp-123',
-      },
-    };
+    const req = completedRequest({ headers: {} });
     const res = createRes();
 
     await zohoWebhook(req, res);
 
     expect(res.statusCode).toBe(401);
     expect(transactionMock).not.toHaveBeenCalled();
+    expect(setMock).not.toHaveBeenCalled();
   });
 
-  it('rejects request with invalid secret', async () => {
-    const req = { method: 'POST', headers: { 'x-webhook-secret': 'wrong' }, body: {} };
+  it('returns 401 when the secret is wrong', async () => {
+    const req = completedRequest({ headers: { 'x-webhook-secret': 'wrong' } });
     const res = createRes();
 
     await zohoWebhook(req, res);
 
     expect(res.statusCode).toBe(401);
+    expect(setMock).not.toHaveBeenCalled();
   });
 
-  it('rejects invalid payload', async () => {
-    const req = {
-      method: 'POST',
-      headers: { 'x-webhook-secret': 'test-secret' },
-      body: { response_status: 'INCOMPLETE' },
-    };
+  it('returns 400 for an invalid payload', async () => {
+    const req = completedRequest({ body: { response_status: 'INCOMPLETE' } });
     const res = createRes();
 
     await zohoWebhook(req, res);
@@ -115,73 +118,79 @@ describe('POST /api/zoho-webhook', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('increments completed count for valid completed response', async () => {
-    onceMock.mockResolvedValue({ exists: () => false });
-    transactionMock.mockImplementation((updateFn) => updateFn(7));
-    setMock.mockResolvedValue();
-    refMock.mockReturnValue({ once: onceMock, transaction: transactionMock, set: setMock });
-
-    const req = {
-      method: 'POST',
-      headers: { 'x-webhook-secret': 'test-secret' },
-      body: {
-        response_status: 'COMPLETED',
-        webhook_event: 'response_completed',
-        response_id: 'resp-123',
-      },
-    };
+  it('increments the session completed counter atomically', async () => {
+    const req = completedRequest();
     const res = createRes();
 
     await zohoWebhook(req, res);
 
+    expect(refMock).toHaveBeenCalledWith('sessions/default/processed/resp-123');
     expect(transactionMock).toHaveBeenCalled();
-    expect(setMock).toHaveBeenCalled();
+    expect(refMock).toHaveBeenCalledWith('sessions/default/completed');
+    expect(setMock).toHaveBeenCalledWith({ __increment__: 1 });
     expect(res.statusCode).toBe(200);
     expect(res.body.completed).toBe(true);
   });
 
-  it('does not increment twice for the same response_id', async () => {
-    onceMock.mockResolvedValue({ exists: () => true, val: () => ({ processedAt: '2024-01-01' }) });
-    refMock.mockReturnValue({ once: onceMock, transaction: transactionMock, set: setMock });
-
-    const req = {
-      method: 'POST',
-      headers: { 'x-webhook-secret': 'test-secret' },
-      body: {
-        response_status: 'COMPLETED',
-        webhook_event: 'response_completed',
-        response_id: 'resp-123',
-      },
-    };
+  it('counts into the session given by ?s=', async () => {
+    const req = completedRequest({ query: { s: 'salon-401' } });
     const res = createRes();
 
     await zohoWebhook(req, res);
 
-    expect(transactionMock).not.toHaveBeenCalled();
+    expect(refMock).toHaveBeenCalledWith('sessions/salon-401/completed');
+  });
+
+  it('does not increment twice for the same response_id (atomic claim)', async () => {
+    transactionMock.mockResolvedValue({ committed: false }); // otro reintento ya lo reservó
+
+    const req = completedRequest();
+    const res = createRes();
+
+    await zohoWebhook(req, res);
+
+    expect(setMock).not.toHaveBeenCalled();
     expect(res.statusCode).toBe(200);
     expect(res.body.completed).toBe(false);
   });
 
-  it('sanitizes response_id for Firebase keys', async () => {
-    onceMock.mockResolvedValue({ exists: () => false });
-    transactionMock.mockImplementation((updateFn) => updateFn(1));
-    setMock.mockResolvedValue();
-    refMock.mockReturnValue({ once: onceMock, transaction: transactionMock, set: setMock });
-
-    const req = {
-      method: 'POST',
-      headers: { 'x-webhook-secret': 'test-secret' },
+  it('sanitizes the response_id before using it as a Firebase key', async () => {
+    const req = completedRequest({
       body: {
         response_status: 'COMPLETED',
         webhook_event: 'response_completed',
         response_id: 'resp.123#test',
       },
-    };
+    });
     const res = createRes();
 
     await zohoWebhook(req, res);
 
-    expect(refMock).toHaveBeenCalledWith('processed_responses/resp_123_test');
+    expect(refMock).toHaveBeenCalledWith('sessions/default/processed/resp_123_test');
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('releases the claim if the counter cannot be written, so the retry counts', async () => {
+    setMock.mockRejectedValue(new Error('firebase caido'));
+
+    const req = completedRequest();
+    const res = createRes();
+
+    await zohoWebhook(req, res);
+
+    expect(removeMock).toHaveBeenCalled();
+    expect(res.statusCode).toBe(500);
+  });
+
+  it('counts without idempotency when Zoho sends no response_id, and warns', async () => {
+    const req = completedRequest({
+      body: { response_status: 'COMPLETED', webhook_event: 'response_completed' },
+    });
+    const res = createRes();
+
+    await zohoWebhook(req, res);
+
+    expect(setMock).toHaveBeenCalledWith({ __increment__: 1 });
     expect(res.statusCode).toBe(200);
   });
 });

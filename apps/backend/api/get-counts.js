@@ -1,11 +1,10 @@
 import { getFirebaseDb } from '../lib/firebase.js';
+import { applyCors, resolveSessionId, sessionBase, toCounts } from '../lib/sessions.js';
 
 const db = getFirebaseDb();
 
 export default async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  applyCors(res, { methods: 'GET, OPTIONS' });
 
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -17,11 +16,13 @@ export default async (req, res) => {
     return;
   }
 
+  const sessionId = resolveSessionId(req);
+
   try {
-    const snapshot = await db.ref('survey_counts').once('value');
-    const counts = snapshot.val() || { scanned: 0, completed: 0 };
-    console.log('Contadores enviados al frontend:', counts);
-    res.status(200).json(counts);
+    const snapshot = await db.ref(sessionBase(sessionId)).once('value');
+    const counts = toCounts(snapshot.val());
+
+    res.status(200).json({ ...counts, sessionId });
   } catch (error) {
     console.error('Error al obtener los contadores para el frontend:', error);
     res.status(500).json({ error: 'Error interno del servidor al obtener los contadores.' });

@@ -125,6 +125,26 @@ VITE_API_BASE_URL=https://qr-smoky-theta.vercel.app/api
 
 El backend valida el header `X-Webhook-Secret` y rechaza cualquier request que no coincida (HTTP 401). Si `ZOHO_WEBHOOK_SECRET` no está configurado, el webhook responde **503** y no registra nada: falla cerrado (antes aceptaba cualquier petición sin autenticación).
 
+## Sesiones: una por salón
+
+Los contadores viven en `sessions/<sesion>/` en lugar de un contador global. Cada salón encuestado usa su propia sesión, así que **los conteos nunca se mezclan y no hace falta reiniciar nada entre salones**: al pasar al siguiente salón se estrena otra sesión y el historial de la campaña se conserva.
+
+- La sesión se indica con `?s=<sesion>` en la URL (por ejemplo `?s=salon-302-20set-1100`). La sesión nace sola con el primer escaneo: no hay que darla de alta.
+- Sin `?s=`, se usa la sesión `default`, que es la que usaban los QR anteriores: el comportamiento previo sigue funcionando igual.
+- En el QR se puede añadir `&d=<dispositivo>` para que cada dispositivo cuente **un solo escaneo** por sesión: recargar la página ya no infla el contador.
+- Los contadores se incrementan de forma **atómica** en Firebase (sin ciclo leer-modificar-escribir), lo que evita la contención cuando un salón entero escanea a la vez.
+
+Estructura en Firebase RTDB:
+
+```
+sessions/<sesion>/scanned
+sessions/<sesion>/completed
+sessions/<sesion>/devices/<dispositivo>     # dedupe de escaneos
+sessions/<sesion>/processed/<respuesta>     # dedupe de completadas
+```
+
+La ruta antigua `survey_counts/` queda obsoleta y puede borrarse desde la consola de Firebase.
+
 ## Reset de contadores
 
 El botón del dashboard pide una **clave de operador** y la envía en la cabecera `X-Reset-Secret`. La clave no se incluye en el bundle del frontend (es un sitio estático público) y no se guarda en el navegador.
@@ -132,6 +152,8 @@ El botón del dashboard pide una **clave de operador** y la envía en la cabecer
 1. Definir `RESET_COUNTS_SECRET` en Vercel con un valor aleatorio largo.
 2. Entregar ese valor a quien deba poder resetear los contadores.
 3. Sin la variable configurada, `POST /api/reset-counts` responde **503** y no resetea nada (falla cerrado).
+
+El reset pone a cero la sesión indicada (`?s=`, por defecto `default`) y además borra los dispositivos y las respuestas ya vistas, de modo que esa sesión vuelve a contar desde el principio. Con el modelo de sesiones, **el reset deja de ser necesario** entre salones.
 
 ## Endpoints de la API
 

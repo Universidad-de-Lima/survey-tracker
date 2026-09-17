@@ -1,21 +1,14 @@
 import { timingSafeEqual } from 'node:crypto';
 
-import { getFirebaseDb } from '../lib/firebase.js';
+import { getFirebaseDb, incrementBy } from '../lib/firebase.js';
+import {
+  applyCors,
+  resolveSessionId,
+  sessionCompletedRef,
+  sessionProcessedRef,
+} from '../lib/sessions.js';
 
 const db = getFirebaseDb();
-
-const SURVEY_COUNTS_REF = 'survey_counts';
-const PROCESSED_RESPONSES_REF = 'processed_responses';
-
-function sanitizeKey(key) {
-  return String(key)
-    .replace(/\./g, '_')
-    .replace(/#/g, '_')
-    .replace(/\$/g, '_')
-    .replace(/\[/g, '_')
-    .replace(/\]/g, '_')
-    .replace(/\//g, '_');
-}
 
 // Comparación en tiempo constante: `!==` filtra el secreto byte a byte según el tiempo
 // de respuesta. `timingSafeEqual` exige buffers de la misma longitud, por eso se
@@ -31,10 +24,26 @@ function secretsMatch(provided, expected) {
   return timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
+/**
+ * Reserva la respuesta de forma ATÓMICA: la transacción sobre el propio marcador
+ * decide un único ganador aunque lleguen dos reintentos de Zoho a la vez. El patrón
+ * anterior (consultar y luego escribir) dejaba pasar ambos y contaba doble.
+ */
+async function claimResponse(sessionId, responseId) {
+  const markerRef = db.ref(sessionProcessedRef(sessionId, responseId));
+
+  const result = await markerRef.transaction((current) => {
+    if (current) {
+      return undefined; // abortar: esta respuesta ya se contó
+    }
+    return { processedAt: new Date().toISOString() };
+  });
+
+  return { committed: Boolean(result?.committed), markerRef };
+}
+
 export default async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Webhook-Secret');
+  applyCors(res, { methods: 'POST, OPTIONS', headers: 'Content-Type, X-Webhook-Secret' });
 
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -72,33 +81,33 @@ export default async (req, res) => {
     return;
   }
 
+  const sessionId = resolveSessionId(req);
+
   try {
-    if (response_id) {
-      const safeResponseId = sanitizeKey(response_id);
-      const processedRef = db.ref(`${PROCESSED_RESPONSES_REF}/${safeResponseId}`);
-      const processedSnap = await processedRef.once('value');
-
-      if (processedSnap.exists()) {
-        console.log(`Webhook idempotente: response_id ${response_id} ya fue procesado.`);
-        res.status(200).json({ message: 'Webhook ya fue procesado.', completed: false });
-        return;
-      }
+    if (!response_id) {
+      console.warn('Webhook sin response_id: no se puede garantizar la idempotencia.');
+      await db.ref(sessionCompletedRef(sessionId)).set(incrementBy(1));
+      res.status(200).json({ message: 'Webhook de Zoho procesado con éxito.', completed: true });
+      return;
     }
 
-    const completedRef = db.ref(`${SURVEY_COUNTS_REF}/completed`);
-    await completedRef.transaction((currentCount) => {
-      return (currentCount || 0) + 1;
-    });
+    const { committed, markerRef } = await claimResponse(sessionId, response_id);
 
-    if (response_id) {
-      const safeResponseId = sanitizeKey(response_id);
-      const processedRef = db.ref(`${PROCESSED_RESPONSES_REF}/${safeResponseId}`);
-      await processedRef.set({
-        processedAt: new Date().toISOString(),
-      });
+    if (!committed) {
+      console.log(`Webhook idempotente: response_id ${response_id} ya fue procesado.`);
+      res.status(200).json({ message: 'Webhook ya fue procesado.', completed: false });
+      return;
     }
 
-    console.log('Contador de encuestas completadas actualizado en Firebase.');
+    try {
+      await db.ref(sessionCompletedRef(sessionId)).set(incrementBy(1));
+    } catch (error) {
+      // Liberar la reserva: si no se pudo contar, el reintento de Zoho debe poder hacerlo.
+      await markerRef.remove();
+      throw error;
+    }
+
+    console.log(`Contador de completadas actualizado en la sesión ${sessionId}.`);
     res.status(200).json({ message: 'Webhook de Zoho procesado con éxito.', completed: true });
   } catch (error) {
     console.error('Error al procesar el webhook de Zoho:', error);

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let setMock;
 let onceMock;
+let transactionMock;
+let removeMock;
 let refMock;
 
 // El endpoint captura la instancia de Firebase en el ámbito del módulo, durante la
@@ -16,6 +18,7 @@ globalThis.dbStore = {
 
 vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
+  incrementBy: (amount) => ({ __increment__: amount }),
 }));
 
 const { default: resetCounts } = await import('../reset-counts.js');
@@ -23,9 +26,16 @@ const { default: resetCounts } = await import('../reset-counts.js');
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.RESET_COUNTS_SECRET = 'test-reset-secret';
-  setMock = vi.fn();
+  setMock = vi.fn().mockResolvedValue();
   onceMock = vi.fn();
-  refMock = vi.fn();
+  transactionMock = vi.fn().mockResolvedValue({ committed: true });
+  removeMock = vi.fn().mockResolvedValue();
+  refMock = vi.fn(() => ({
+    set: setMock,
+    once: onceMock,
+    transaction: transactionMock,
+    remove: removeMock,
+  }));
 });
 
 function createRes() {
@@ -52,23 +62,38 @@ function createRes() {
 }
 
 describe('POST /api/reset-counts', () => {
-  it('resets counts to zero and returns previous values with a valid secret', async () => {
-    const previous = { scanned: 10, completed: 7 };
-    onceMock.mockResolvedValue({ val: () => previous });
-    setMock.mockResolvedValue();
-    refMock.mockReturnValue({ once: onceMock, set: setMock });
+  it('zeros the session counters and returns the previous values', async () => {
+    onceMock.mockResolvedValue({ val: () => ({ scanned: 10, completed: 7 }) });
 
     const req = { method: 'POST', headers: { 'x-reset-secret': 'test-reset-secret' } };
     const res = createRes();
 
     await resetCounts(req, res);
 
+    expect(refMock).toHaveBeenCalledWith('sessions/default');
     expect(setMock).toHaveBeenCalledWith({ scanned: 0, completed: 0 });
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({
       message: 'Contadores reseteados exitosamente.',
+      sessionId: 'default',
       previousCounts: { scanned: 10, completed: 7 },
     });
+  });
+
+  it('resets the session given by ?s=', async () => {
+    onceMock.mockResolvedValue({ val: () => ({ scanned: 1, completed: 0 }) });
+
+    const req = {
+      method: 'POST',
+      headers: { 'x-reset-secret': 'test-reset-secret' },
+      query: { s: 'salon-9' },
+    };
+    const res = createRes();
+
+    await resetCounts(req, res);
+
+    expect(refMock).toHaveBeenCalledWith('sessions/salon-9');
+    expect(res.body.sessionId).toBe('salon-9');
   });
 
   it('returns 401 when the secret header is missing', async () => {
@@ -93,6 +118,7 @@ describe('POST /api/reset-counts', () => {
 
   it('returns 503 when RESET_COUNTS_SECRET is not configured (fail closed)', async () => {
     delete process.env.RESET_COUNTS_SECRET;
+
     const req = { method: 'POST', headers: { 'x-reset-secret': 'anything' } };
     const res = createRes();
 

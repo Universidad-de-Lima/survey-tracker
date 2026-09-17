@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 
 import { getFirebaseDb } from '../lib/firebase.js';
+import { applyCors, resolveSessionId, sessionBase, toCounts } from '../lib/sessions.js';
 
 const db = getFirebaseDb();
 
@@ -19,9 +20,7 @@ function secretsMatch(provided, expected) {
 }
 
 export default async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Reset-Secret');
+  applyCors(res, { methods: 'POST, OPTIONS', headers: 'Content-Type, X-Reset-Secret' });
 
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -34,8 +33,8 @@ export default async (req, res) => {
   }
 
   // Falla CERRADO: sin secreto configurado el endpoint queda deshabilitado en lugar de
-  // abrirse a cualquiera. Es una operación destructiva, así que la ausencia de
-  // configuración nunca debe convertirse en acceso libre.
+  // abrirse. Es una operación destructiva, así que la ausencia de configuración nunca
+  // debe convertirse en acceso libre.
   const expectedSecret = process.env.RESET_COUNTS_SECRET;
 
   if (!expectedSecret) {
@@ -52,21 +51,27 @@ export default async (req, res) => {
     return;
   }
 
-  try {
-    const snapshot = await db.ref('survey_counts').once('value');
-    const previousCounts = snapshot.val() || { scanned: 0, completed: 0 };
+  const sessionId = resolveSessionId(req);
 
-    await db.ref('survey_counts').set({
+  try {
+    const snapshot = await db.ref(sessionBase(sessionId)).once('value');
+    const previousCounts = toCounts(snapshot.val());
+
+    // Un solo `set` sobre el nodo de la sesión: además de poner los contadores a cero,
+    // borra los dispositivos y las respuestas ya vistas, de modo que una sesión
+    // reiniciada vuelve a contar desde el principio.
+    await db.ref(sessionBase(sessionId)).set({
       scanned: 0,
       completed: 0,
     });
 
-    console.log('Contadores reseteados. Valores anteriores:', previousCounts);
+    console.log(`Contadores reseteados en la sesión ${sessionId}.`, previousCounts);
     res.status(200).json({
       message: 'Contadores reseteados exitosamente.',
+      sessionId,
       previousCounts: {
-        scanned: previousCounts.scanned ?? 0,
-        completed: previousCounts.completed ?? 0,
+        scanned: previousCounts.scanned,
+        completed: previousCounts.completed,
       },
     });
   } catch (error) {
