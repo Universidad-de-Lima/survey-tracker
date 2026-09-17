@@ -9,6 +9,9 @@ build/
 out/
 .cache/
 
+# QR generados en CI a partir de data/salones.csv (no se versionan)
+apps/frontend/public/qr/
+
 # Environment
 .env
 .env.local
