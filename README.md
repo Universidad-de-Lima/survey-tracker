@@ -123,7 +123,7 @@ VITE_API_BASE_URL=https://qr-smoky-theta.vercel.app/api
 4. El valor debe coincidir exactamente con la variable de entorno `ZOHO_WEBHOOK_SECRET` en Vercel.
 5. Evento recomendado: `response_completed`.
 
-El backend valida el header `X-Webhook-Secret` y rechaza cualquier request que no coincida (HTTP 401).
+El backend valida el header `X-Webhook-Secret` y rechaza cualquier request que no coincida (HTTP 401). Si `ZOHO_WEBHOOK_SECRET` no está configurado, el webhook responde **503** y no registra nada: falla cerrado (antes aceptaba cualquier petición sin autenticación).
 
 ## Reset de contadores
 
@@ -146,7 +146,7 @@ Ver [docs/api/README.md](./docs/api/README.md) para el detalle completo.
 
 ## Seguridad e idempotencia
 
-- **Webhook protegido:** requiere header `X-Webhook-Secret`.
+- **Webhook protegido:** requiere header `X-Webhook-Secret`, comparado en tiempo constante. Si `ZOHO_WEBHOOK_SECRET` no está configurado, el endpoint responde 503 en lugar de quedar abierto.
 - **Reset protegido:** `POST /api/reset-counts` exige la cabecera `X-Reset-Secret`, comparada en tiempo constante. Si `RESET_COUNTS_SECRET` no está configurado, el endpoint responde 503 en lugar de quedar abierto.
 - **Idempotencia:** cada `response_id` de Zoho se registra en `processed_responses/` para evitar conteos duplicados si Zoho reintenta el webhook.
 - **Sanitización:** los `response_id` se limpian antes de usarse como claves de Firebase RTDB.

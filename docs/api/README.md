@@ -49,8 +49,8 @@ X-Webhook-Secret: <ZOHO_WEBHOOK_SECRET>
 **Output:**
 - Success (nueva respuesta): HTTP 200 `{ message: "Webhook de Zoho procesado con éxito.", completed: true }`
 - Success (respuesta ya procesada): HTTP 200 `{ message: "Webhook ya fue procesado.", completed: false }`
-- Secret inválido: HTTP 401 `{ error: "Unauthorized: invalid webhook secret." }`
-- Secret no configurado: HTTP 500 `{ error: "Webhook secret not configured." }`
+- Secret inválido o ausente: HTTP 401 `{ error: "Unauthorized: invalid webhook secret." }`
+- Secret no configurado en el servidor: HTTP 503 `{ error: "Webhook secret not configured." }`
 - Payload inválido: HTTP 400 `{ error: "Payload de webhook inválido o incompleto." }`
 - Error interno: HTTP 500 `{ error: "Error interno del servidor al procesar el webhook." }`
 - OPTIONS: HTTP 204
@@ -60,7 +60,8 @@ X-Webhook-Secret: <ZOHO_WEBHOOK_SECRET>
 - Guarda `processed_responses/<response_id>` para evitar conteos duplicados.
 
 **Seguridad:**
-- El header `X-Webhook-Secret` debe coincidir con la variable de entorno `ZOHO_WEBHOOK_SECRET`.
+- El header `X-Webhook-Secret` debe coincidir con la variable de entorno `ZOHO_WEBHOOK_SECRET`, comparada en tiempo constante (`crypto.timingSafeEqual`).
+- **Falla cerrado:** sin `ZOHO_WEBHOOK_SECRET` el webhook responde 503 y no registra nada, en lugar de aceptar cualquier petición.
 
 ---
 

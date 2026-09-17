@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { getFirebaseDb } from '../lib/firebase.js';
 
 const db = getFirebaseDb();
@@ -15,6 +17,20 @@ function sanitizeKey(key) {
     .replace(/\//g, '_');
 }
 
+// Comparación en tiempo constante: `!==` filtra el secreto byte a byte según el tiempo
+// de respuesta. `timingSafeEqual` exige buffers de la misma longitud, por eso se
+// comprueba el tamaño antes de comparar.
+function secretsMatch(provided, expected) {
+  const providedBuffer = Buffer.from(String(provided));
+  const expectedBuffer = Buffer.from(String(expected));
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
 export default async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -30,17 +46,21 @@ export default async (req, res) => {
     return;
   }
 
+  // Falla CERRADO: sin secreto configurado el webhook queda deshabilitado en lugar de
+  // aceptar cualquier petición. El contador de completadas es un dato de negocio, así
+  // que la ausencia de configuración no debe convertirse en acceso libre.
   const expectedSecret = process.env.ZOHO_WEBHOOK_SECRET;
-  const providedSecret = req.headers['x-webhook-secret'];
 
-  if (expectedSecret) {
-    if (providedSecret !== expectedSecret) {
-      console.warn('Webhook rechazado: secreto inválido.');
-      res.status(401).json({ error: 'Unauthorized: invalid webhook secret.' });
-      return;
-    }
-  } else {
-    console.warn('ZOHO_WEBHOOK_SECRET no está configurado. Webhook aceptado sin autenticación.');
+  if (!expectedSecret) {
+    console.error('ZOHO_WEBHOOK_SECRET no está configurado: el webhook queda deshabilitado.');
+    res.status(503).json({ error: 'Webhook secret not configured.' });
+    return;
+  }
+
+  if (!secretsMatch(req.headers['x-webhook-secret'], expectedSecret)) {
+    console.warn('Webhook rechazado: secreto inválido.');
+    res.status(401).json({ error: 'Unauthorized: invalid webhook secret.' });
+    return;
   }
 
   console.log('Webhook de Zoho recibido:', req.body);
