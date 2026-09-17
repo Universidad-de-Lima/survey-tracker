@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 globalThis.dbStore = { current: null };
 
-vi.mock('../../lib/firebase.js', () => ({
+vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
 }));
 
-import zohoWebhook from '../zoho-webhook.js';
+const { default: zohoWebhook } = await import('../zoho-webhook.js');
 
 let transactionMock;
 let setMock;

@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 globalThis.dbStore = { current: null };
 
-vi.mock('../../lib/firebase.js', () => ({
+vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
 }));
 
-import getCounts from '../get-counts.js';
+const { default: getCounts } = await import('../get-counts.js');
 
 let refMock;
 let onceMock;

@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 globalThis.dbStore = { current: null };
 
-vi.mock('../../lib/firebase.js', () => ({
+vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
 }));
 
-import qrScan from '../qr-scan.js';
+const { default: qrScan } = await import('../qr-scan.js');
 
 let transactionMock;
 let refMock;
