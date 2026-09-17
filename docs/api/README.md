@@ -90,6 +90,12 @@ Retorna los contadores actuales para el dashboard frontend.
 
 Reinicia los contadores `scanned` y `completed` a cero.
 
+**Headers:**
+```
+Content-Type: application/json
+X-Reset-Secret: <RESET_COUNTS_SECRET>
+```
+
 **Input:**
 - Método: `POST` (también acepta `OPTIONS`)
 
@@ -104,11 +110,19 @@ Reinicia los contadores `scanned` y `completed` a cero.
   }
 }
 ```
-- Error: HTTP 500 `{ error: "Error interno del servidor al resetear contadores." }`
+- Clave inválida o ausente: HTTP 401 `{ error: "Unauthorized: invalid reset secret." }`
+- Clave no configurada en el servidor: HTTP 503 `{ error: "Reset endpoint not configured." }`
+- Método no permitido: HTTP 405 `{ error: "Método no permitido." }`
+- Error interno: HTTP 500 `{ error: "Error interno del servidor al resetear contadores." }`
 - OPTIONS: HTTP 204
 
 **Side effects:**
 - Establece `survey_counts` a `{ scanned: 0, completed: 0 }`.
+
+**Seguridad:**
+- Operación destructiva: **falla cerrado**. Sin `RESET_COUNTS_SECRET`, el endpoint responde 503 y no resetea nada.
+- La clave se envía en la cabecera `X-Reset-Secret` y se compara en tiempo constante (`crypto.timingSafeEqual`).
+- La clave **no** se incluye en el bundle del frontend: la teclea el operador en el dashboard en cada operación.
 
 ---
 

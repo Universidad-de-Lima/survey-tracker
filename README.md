@@ -33,7 +33,7 @@ Usuario escanea QR
 Dashboard (GitHub Pages)
   │
   └─► Polling cada 5s a /api/get-counts
-  └─► POST /api/reset-counts (botón)
+  └─► POST /api/reset-counts (botón + clave de operador)
 ```
 
 ## Stack tecnológico
@@ -93,6 +93,10 @@ FIREBASE_DATABASE_URL=https://your-project.firebaseio.com
 ZOHO_SURVEY_URL=https://survey.zohopublic.com/zs/ZKC54z
 ZOHO_WEBHOOK_SECRET=your-secure-random-secret
 
+# Reset de contadores (cabecera X-Reset-Secret).
+# Si no se define, POST /api/reset-counts responde 503 y no resetea nada.
+RESET_COUNTS_SECRET=your-secure-random-secret
+
 # Environment
 NODE_ENV=production
 ```
@@ -121,6 +125,14 @@ VITE_API_BASE_URL=https://qr-smoky-theta.vercel.app/api
 
 El backend valida el header `X-Webhook-Secret` y rechaza cualquier request que no coincida (HTTP 401).
 
+## Reset de contadores
+
+El botón del dashboard pide una **clave de operador** y la envía en la cabecera `X-Reset-Secret`. La clave no se incluye en el bundle del frontend (es un sitio estático público) y no se guarda en el navegador.
+
+1. Definir `RESET_COUNTS_SECRET` en Vercel con un valor aleatorio largo.
+2. Entregar ese valor a quien deba poder resetear los contadores.
+3. Sin la variable configurada, `POST /api/reset-counts` responde **503** y no resetea nada (falla cerrado).
+
 ## Endpoints de la API
 
 Ver [docs/api/README.md](./docs/api/README.md) para el detalle completo.
@@ -130,11 +142,12 @@ Ver [docs/api/README.md](./docs/api/README.md) para el detalle completo.
 | GET | `/api/qr-scan` | Registra un escaneo y redirige a la encuesta Zoho |
 | POST | `/api/zoho-webhook` | Recibe notificación de encuesta completada |
 | GET | `/api/get-counts` | Retorna contadores actuales |
-| POST | `/api/reset-counts` | Reinicia contadores a cero |
+| POST | `/api/reset-counts` | Reinicia contadores a cero (requiere `X-Reset-Secret`) |
 
 ## Seguridad e idempotencia
 
 - **Webhook protegido:** requiere header `X-Webhook-Secret`.
+- **Reset protegido:** `POST /api/reset-counts` exige la cabecera `X-Reset-Secret`, comparada en tiempo constante. Si `RESET_COUNTS_SECRET` no está configurado, el endpoint responde 503 en lugar de quedar abierto.
 - **Idempotencia:** cada `response_id` de Zoho se registra en `processed_responses/` para evitar conteos duplicados si Zoho reintenta el webhook.
 - **Sanitización:** los `response_id` se limpian antes de usarse como claves de Firebase RTDB.
 

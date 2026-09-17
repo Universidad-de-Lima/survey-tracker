@@ -1,11 +1,27 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { getFirebaseDb } from '../lib/firebase.js';
 
 const db = getFirebaseDb();
 
+// Comparación en tiempo constante: `!==` filtra el secreto byte a byte según el tiempo
+// de respuesta. `timingSafeEqual` exige buffers de la misma longitud, por eso se
+// comprueba el tamaño antes de comparar.
+function secretsMatch(provided, expected) {
+  const providedBuffer = Buffer.from(String(provided));
+  const expectedBuffer = Buffer.from(String(expected));
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(providedBuffer, expectedBuffer);
+}
+
 export default async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Reset-Secret');
 
   if (req.method === 'OPTIONS') {
     res.status(204).end();
@@ -14,6 +30,25 @@ export default async (req, res) => {
 
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Método no permitido.' });
+    return;
+  }
+
+  // Falla CERRADO: sin secreto configurado el endpoint queda deshabilitado en lugar de
+  // abrirse a cualquiera. Es una operación destructiva, así que la ausencia de
+  // configuración nunca debe convertirse en acceso libre.
+  const expectedSecret = process.env.RESET_COUNTS_SECRET;
+
+  if (!expectedSecret) {
+    console.error(
+      'RESET_COUNTS_SECRET no está configurado: el endpoint de reset queda deshabilitado.',
+    );
+    res.status(503).json({ error: 'Reset endpoint not configured.' });
+    return;
+  }
+
+  if (!secretsMatch(req.headers['x-reset-secret'], expectedSecret)) {
+    console.warn('Reset rechazado: secreto inválido o ausente.');
+    res.status(401).json({ error: 'Unauthorized: invalid reset secret.' });
     return;
   }
 

@@ -12,6 +12,10 @@ export async function fetchSurveyCounts(): Promise<DashboardCounts> {
   };
 }
 
-export async function resetSurveyCounts(): Promise<ResetCountsResponse> {
-  return apiClient.post<ResetCountsResponse>('/reset-counts', {});
+export async function resetSurveyCounts(operatorSecret: string): Promise<ResetCountsResponse> {
+  const requestOptions: RequestInit = {
+    headers: { 'X-Reset-Secret': operatorSecret },
+  };
+
+  return apiClient.post<ResetCountsResponse>('/reset-counts', {}, requestOptions);
 }

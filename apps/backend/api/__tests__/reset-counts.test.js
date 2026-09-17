@@ -22,6 +22,7 @@ const { default: resetCounts } = await import('../reset-counts.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.RESET_COUNTS_SECRET = 'test-reset-secret';
   setMock = vi.fn();
   onceMock = vi.fn();
   refMock = vi.fn();
@@ -51,13 +52,13 @@ function createRes() {
 }
 
 describe('POST /api/reset-counts', () => {
-  it('resets counts to zero and returns previous values', async () => {
+  it('resets counts to zero and returns previous values with a valid secret', async () => {
     const previous = { scanned: 10, completed: 7 };
     onceMock.mockResolvedValue({ val: () => previous });
     setMock.mockResolvedValue();
     refMock.mockReturnValue({ once: onceMock, set: setMock });
 
-    const req = { method: 'POST' };
+    const req = { method: 'POST', headers: { 'x-reset-secret': 'test-reset-secret' } };
     const res = createRes();
 
     await resetCounts(req, res);
@@ -70,8 +71,49 @@ describe('POST /api/reset-counts', () => {
     });
   });
 
+  it('returns 401 when the secret header is missing', async () => {
+    const req = { method: 'POST', headers: {} };
+    const res = createRes();
+
+    await resetCounts(req, res);
+
+    expect(res.statusCode).toBe(401);
+    expect(setMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 when the secret is wrong and does not touch the counters', async () => {
+    const req = { method: 'POST', headers: { 'x-reset-secret': 'wrong-secret' } };
+    const res = createRes();
+
+    await resetCounts(req, res);
+
+    expect(res.statusCode).toBe(401);
+    expect(setMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 503 when RESET_COUNTS_SECRET is not configured (fail closed)', async () => {
+    delete process.env.RESET_COUNTS_SECRET;
+    const req = { method: 'POST', headers: { 'x-reset-secret': 'anything' } };
+    const res = createRes();
+
+    await resetCounts(req, res);
+
+    expect(res.statusCode).toBe(503);
+    expect(setMock).not.toHaveBeenCalled();
+  });
+
+  it('allows the CORS preflight and exposes the X-Reset-Secret header', async () => {
+    const req = { method: 'OPTIONS', headers: {} };
+    const res = createRes();
+
+    await resetCounts(req, res);
+
+    expect(res.statusCode).toBe(204);
+    expect(res.headers['Access-Control-Allow-Headers']).toContain('X-Reset-Secret');
+  });
+
   it('returns 405 for non-POST/OPTIONS methods', async () => {
-    const req = { method: 'GET' };
+    const req = { method: 'GET', headers: {} };
     const res = createRes();
 
     await resetCounts(req, res);

@@ -18,8 +18,8 @@ export function useSurveyCounts() {
 export function useResetCounts() {
   const queryClient = useQueryClient();
 
-  return useMutation<ResetCountsResponse, Error>({
-    mutationFn: () => resetSurveyCounts(),
+  return useMutation<ResetCountsResponse, Error, string>({
+    mutationFn: (operatorSecret: string) => resetSurveyCounts(operatorSecret),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['surveyCounts'] });
     },
