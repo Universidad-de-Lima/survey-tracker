@@ -1,17 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-globalThis.dbStore = { current: null };
+let transactionMock;
+let setMock;
+let onceMock;
+let refMock;
+
+// El endpoint captura la instancia de Firebase en el ámbito del módulo, durante la
+// importación: `dbStore.current` debe existir ya aquí (nunca null) o todas las
+// peticiones responden 500. `ref` delega en el espía vigente de cada test, porque los
+// espías se recrean en el `beforeEach` y el objeto capturado no puede apuntar a ellos.
+globalThis.dbStore = {
+  current: {
+    ref: (...args) => refMock(...args),
+  },
+};
 
 vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
 }));
 
 const { default: zohoWebhook } = await import('../zoho-webhook.js');
-
-let transactionMock;
-let setMock;
-let onceMock;
-let refMock;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -20,7 +28,6 @@ beforeEach(() => {
   setMock = vi.fn();
   onceMock = vi.fn();
   refMock = vi.fn();
-  globalThis.dbStore.current = { ref: (path) => ({ once: () => ({ exists: () => onceMock(), val: () => ({ processedAt: '2024-01-01' }) }), transaction: transactionMock, set: setMock }) };
 });
 
 function createRes() {

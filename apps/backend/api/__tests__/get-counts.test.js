@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-globalThis.dbStore = { current: null };
+let refMock;
+let onceMock;
+
+// El endpoint captura la instancia de Firebase en el ámbito del módulo, durante la
+// importación: `dbStore.current` debe existir ya aquí (nunca null) o todas las
+// peticiones responden 500. `ref` delega en el espía vigente de cada test, porque los
+// espías se recrean en el `beforeEach` y el objeto capturado no puede apuntar a ellos.
+globalThis.dbStore = {
+  current: {
+    ref: (...args) => refMock(...args),
+  },
+};
 
 vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
@@ -8,14 +19,10 @@ vi.doMock('../../lib/firebase.js', () => ({
 
 const { default: getCounts } = await import('../get-counts.js');
 
-let refMock;
-let onceMock;
-
 beforeEach(() => {
   vi.clearAllMocks();
   refMock = vi.fn();
   onceMock = vi.fn();
-  globalThis.dbStore.current = { ref: (path) => ({ once: () => onceMock() }) };
 });
 
 function createRes() {

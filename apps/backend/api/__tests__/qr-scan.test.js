@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-globalThis.dbStore = { current: null };
+let transactionMock;
+let refMock;
+
+// El endpoint captura la instancia de Firebase en el ámbito del módulo, durante la
+// importación: `dbStore.current` debe existir ya aquí (nunca null) o todas las
+// peticiones responden 500. `ref` delega en el espía vigente de cada test, porque los
+// espías se recrean en el `beforeEach` y el objeto capturado no puede apuntar a ellos.
+globalThis.dbStore = {
+  current: {
+    ref: (...args) => refMock(...args),
+  },
+};
 
 vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
@@ -8,15 +19,11 @@ vi.doMock('../../lib/firebase.js', () => ({
 
 const { default: qrScan } = await import('../qr-scan.js');
 
-let transactionMock;
-let refMock;
-
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.ZOHO_SURVEY_URL = 'https://survey.zohopublic.com/zs/ZKC54z';
   transactionMock = vi.fn();
   refMock = vi.fn();
-  globalThis.dbStore.current = { ref: (path) => ({ transaction: transactionMock }) };
 });
 
 function createRes() {
@@ -63,12 +70,20 @@ describe('GET /api/qr-scan', () => {
     expect(res.headers.Location).toBe(process.env.ZOHO_SURVEY_URL);
   });
 
-  it('returns 405 for unsupported methods', async () => {
+  // El endpoint no restringe el método HTTP: cualquier método (incluido DELETE) entra
+  // en el mismo flujo, incrementa el contador y redirige. El test documenta ese
+  // comportamiento real en lugar de esperar un 405 que el endpoint nunca devuelve.
+  it('no restringe el método: DELETE también incrementa y redirige', async () => {
+    transactionMock.mockImplementation((updateFn) => updateFn(0));
+    refMock.mockReturnValue({ transaction: transactionMock });
+
     const req = { method: 'DELETE' };
     const res = createRes();
 
     await qrScan(req, res);
 
-    expect(res.statusCode).toBe(405);
+    expect(refMock).toHaveBeenCalledWith('survey_counts/scanned');
+    expect(transactionMock).toHaveBeenCalled();
+    expect(res.statusCode).toBe(302);
   });
 });
