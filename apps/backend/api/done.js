@@ -24,7 +24,7 @@ function thanksPage() {
 <main>
   <div class="tick">✅</div>
   <h1>¡Gracias! Tu encuesta quedó registrada</h1>
-  <p>Ya puedes cerrar esta ventana y entregar el celular.</p>
+  <p>Ya puedes cerrar esta ventana.</p>
 </main>
 </body>
 </html>`;
