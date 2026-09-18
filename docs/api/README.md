@@ -24,8 +24,7 @@ Es el destino del QR proyectado. Cuenta el escaneo y redirige al alumno a la enc
 **Efectos:**
 - Incrementa `sessions/<sesion>/scanned` con un incremento atómico resuelto en el servidor de
   Firebase (`ServerValue.increment`), sin ciclo leer-modificar-escribir.
-- Deja la cookie `escaneo_<sesion>` (HttpOnly, SameSite=Lax, 20 minutos) para no contar dos
-  veces el mismo celular.
+- No deja ninguna cookie: cada escaneo suma, aunque venga del mismo celular.
 
 **Robustez:** el contador es lo de menos. Si Firebase falla, **igual se redirige a la
 encuesta**: lo que se pierde es un escaneo, nunca la respuesta del alumno.
@@ -47,7 +46,7 @@ webhook: no hay cabeceras ni secretos que configurar, sólo pegar la URL una vez
 
 **Efectos:**
 - Incrementa `sessions/<sesion>/completed`.
-- Deja la cookie `terminado_<sesion>` para no contar dos veces si el alumno recarga.
+- No deja ninguna cookie: cada finalización suma.
 
 **Robustez:** aunque falle el conteo, el alumno **siempre** ve el agradecimiento.
 
@@ -119,8 +118,7 @@ Todos los endpoints habilitan CORS con origen `*`, porque el panel se sirve desd
   los reintentos del ciclo leer-modificar-escribir y la latencia que espera el alumno.
 - **Sesiones:** los contadores viven en `sessions/<sesion>/`. La campaña usa `default`; el
   parámetro `?s=` se mantiene porque los QR antiguos lo llevan y no estorba.
-- **Deduplicación:** por cookie, no por IP. Una cookie por sesión (`escaneo_<sesion>`,
-  `terminado_<sesion>`) evita el doble conteo del mismo celular sin depender de la red del
-  campus.
+- **Sin deduplicación:** cada escaneo y cada finalización suman uno. Se pidió así a propósito:
+  el contador refleja exactamente lo que llega, sin nada por detrás.
 - **Enrutado:** `apps/backend/vercel.json` declara las rutas una a una. Un endpoint nuevo que
   no se añada ahí **devuelve 404 sin que el CI avise**.

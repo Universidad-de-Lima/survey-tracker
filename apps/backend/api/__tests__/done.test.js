@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let setMock;
 let refMock;
-let store;
 
 globalThis.dbStore = {
   current: {
@@ -19,13 +18,8 @@ const { default: done } = await import('../done.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
-  store = {};
   setMock = vi.fn().mockResolvedValue();
-  // `once` devuelve el nodo de la sesión, de donde sale la generación de la cookie.
-  refMock = vi.fn((path) => ({
-    set: setMock,
-    once: async () => ({ val: () => (path in store ? store[path] : null) }),
-  }));
+  refMock = vi.fn(() => ({ set: setMock }));
 });
 
 function createRes() {
@@ -62,7 +56,6 @@ describe('GET /api/done', () => {
 
     expect(refMock).toHaveBeenCalledWith('sessions/default/completed');
     expect(setMock).toHaveBeenCalledWith({ __increment__: 1 });
-    expect(res.headers['Set-Cookie']).toContain('terminado_default_g0=1');
     expect(res.statusCode).toBe(200);
     expect(res.headers['Content-Type']).toBe('text/html; charset=utf-8');
     expect(res.body).toContain(AGRADECIMIENTO);
@@ -74,7 +67,6 @@ describe('GET /api/done', () => {
     await done({ method: 'GET', query: { s: 'salon-302' } }, res);
 
     expect(refMock).toHaveBeenCalledWith('sessions/salon-302/completed');
-    expect(res.headers['Set-Cookie']).toContain('terminado_salon-302_g0=1');
   });
 
   it('reads the session from the url when req.query is absent', async () => {
@@ -85,24 +77,15 @@ describe('GET /api/done', () => {
     expect(refMock).toHaveBeenCalledWith('sessions/salon-401/completed');
   });
 
-  it('does not count twice when the student reloads the thanks page', async () => {
-    const res = createRes();
+  it('counts every completion, even if the page is reloaded', async () => {
+    const primera = createRes();
+    await done({ method: 'GET' }, primera);
 
-    await done({ method: 'GET', headers: { cookie: 'otra=1; terminado_default_g0=1' } }, res);
+    const segunda = createRes();
+    await done({ method: 'GET', headers: { cookie: 'cualquier-cosa=1' } }, segunda);
 
-    expect(setMock).not.toHaveBeenCalled();
-    expect(res.headers['Set-Cookie']).toBeUndefined();
-    expect(res.body).toContain(AGRADECIMIENTO);
-  });
-
-  it('counts the same phone again after a reset, because its cookie is stale', async () => {
-    store['sessions/default'] = { scanned: 0, completed: 0, generacion: 2 };
-
-    const res = createRes();
-    await done({ method: 'GET', headers: { cookie: 'terminado_default_g0=1' } }, res);
-
-    expect(setMock).toHaveBeenCalledWith({ __increment__: 1 });
-    expect(res.headers['Set-Cookie']).toContain('terminado_default_g2=1');
+    expect(setMock).toHaveBeenCalledTimes(2);
+    expect(segunda.body).toContain(AGRADECIMIENTO);
   });
 
   it('still shows the thanks page when counting fails', async () => {

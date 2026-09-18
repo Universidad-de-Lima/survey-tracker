@@ -3,12 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SESSION,
   queryParam,
-  readSessionState,
   resolveSessionId,
   sanitizeKey,
   sessionBase,
   sessionCompletedRef,
-  sessionGenerationRef,
   sessionScannedRef,
   toCounts,
 } from '../sessions.js';
@@ -87,33 +85,5 @@ describe('toCounts', () => {
   it('handles an empty session node', () => {
     expect(toCounts(null)).toEqual({ scanned: 0, completed: 0, pending: 0 });
     expect(toCounts(undefined)).toEqual({ scanned: 0, completed: 0, pending: 0 });
-  });
-});
-
-describe('session generation', () => {
-  it('builds the RTDB path of the generation', () => {
-    expect(sessionGenerationRef('s1')).toBe('sessions/s1/generacion');
-  });
-
-  it('reads generation and counters from the session in one query', async () => {
-    const db = {
-      ref: () => ({
-        once: async () => ({ val: () => ({ scanned: 30, completed: 28, generacion: 3 }) }),
-      }),
-    };
-
-    await expect(readSessionState(db, 's1')).resolves.toEqual({
-      generacion: 3,
-      counts: { scanned: 30, completed: 28, pending: 2 },
-    });
-  });
-
-  it('treats a session that was never reset as generation 0', async () => {
-    const db = { ref: () => ({ once: async () => ({ val: () => null }) }) };
-
-    await expect(readSessionState(db, 's1')).resolves.toEqual({
-      generacion: 0,
-      counts: { scanned: 0, completed: 0, pending: 0 },
-    });
   });
 });

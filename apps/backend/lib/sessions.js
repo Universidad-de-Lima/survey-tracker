@@ -90,28 +90,3 @@ export function toCounts(value) {
 
   return { scanned, completed, pending: Math.max(0, scanned - completed) };
 }
-
-/**
- * Generación de la sesión: sube en 1 con cada RESET.
- *
- * Sirve para invalidar al instante las cookies que ya están repartidas por los
- * teléfonos: el RESET no puede borrarlas (viven en el navegador del alumno), así que
- * en su lugar cambia el nombre de la cookie. Sin esto, el mismo celular que vuelve a
- * escanear después de un reset no se contaría hasta que su cookie caducara.
- */
-export function sessionGenerationRef(sessionId) {
-  return `${sessionBase(sessionId)}/generacion`;
-}
-
-/**
- * Lee de una sola consulta el estado completo de la sesión: la generación (para el
- * nombre de la cookie) y los contadores. Una lectura, no dos.
- */
-export async function readSessionState(db, sessionId) {
-  const value = (await db.ref(sessionBase(sessionId)).once('value')).val();
-
-  return {
-    generacion: Number(value?.generacion) || 0,
-    counts: toCounts(value),
-  };
-}

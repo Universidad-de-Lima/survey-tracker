@@ -1,6 +1,5 @@
-import { buildCookie, dedupeCookieName, hasCookie } from '../lib/cookies.js';
 import { getFirebaseDb, incrementBy } from '../lib/firebase.js';
-import { readSessionState, resolveSessionId, sessionCompletedRef } from '../lib/sessions.js';
+import { resolveSessionId, sessionCompletedRef } from '../lib/sessions.js';
 
 const db = getFirebaseDb();
 
@@ -48,16 +47,8 @@ export default async (req, res) => {
 
   // Aunque el conteo falle, el alumno ya terminó: siempre ve el agradecimiento.
   try {
-    const { generacion } = await readSessionState(db, sessionId);
-    const cookieName = dedupeCookieName('terminado', sessionId, generacion);
-
-    if (hasCookie(req, cookieName)) {
-      console.log(`Finalización repetida ignorada en ${sessionId} (generación ${generacion}).`);
-    } else {
-      await db.ref(sessionCompletedRef(sessionId)).set(incrementBy(1));
-      res.setHeader('Set-Cookie', buildCookie(cookieName));
-      console.log(`Finalización contada en ${sessionId} (generación ${generacion}).`);
-    }
+    await db.ref(sessionCompletedRef(sessionId)).set(incrementBy(1));
+    console.log(`Finalización contada en ${sessionId}.`);
   } catch (error) {
     console.error('Error al contar la finalización:', error);
   }

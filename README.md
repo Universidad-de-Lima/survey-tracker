@@ -18,8 +18,7 @@ cuándo puede pasar al siguiente salón.
                           │
                           ▼
                    /api/qr-scan ──── cuenta el escaneo ──► redirige a la encuesta de Zoho
-                          │          (deja una cookie para no
-                          │           contar dos veces el mismo celular)
+                          │
                           ▼
               el alumno responde y pulsa ENVIAR
                           │
@@ -58,27 +57,21 @@ sessions/default/completed    encuestas terminadas
   `https://universidad-de-lima.github.io/survey-tracker/qr/encuesta.png`, que es lo que el
   panel muestra en pantalla. No hay que generarlo ni subirlo a mano.
 
-## Doble escaneo
+## Cada escaneo cuenta
 
-Cuando un celular escanea, el servidor le deja una cookie (`escaneo_default`). Así, recargar
-la página o volver a escanear **no infla el contador** — que es justo lo que impediría que
-«Pendientes» llegara a cero y dejaría al encuestador esperando. La misma idea se aplica a la
-finalización (`terminado_default`), para no contar dos veces si el alumno recarga la página
-de agradecimiento.
+**No hay deduplicación**: si un mismo celular escanea dos veces, **suma dos**. Se pidió así
+para que el contador refleje directamente lo que ocurre en el salón, sin nada por detrás.
 
-Las cookies caducan a los 20 minutos.
-
-> **Limitación conocida (pendiente de corregir):** el reset no puede borrar las cookies que
-> ya están repartidas en los teléfonos, así que un mismo celular que vuelva a escanear
-> **después** de un reset no se cuenta hasta que su cookie caduque. Dentro de un salón no
-> afecta; sólo aparece al probar «escaneo → reset → escaneo» con el mismo teléfono.
+Consecuencia a tener en cuenta: si alguien escanea de más, «Pendientes» puede quedarse por
+encima de cero aunque ya hayan terminado todos. El encuestador lo resuelve pulsando `RESET`
+cuando comprueba que ya no queda nadie respondiendo.
 
 ## Reset
 
-El botón `RESET` del panel pone el contador a cero para el siguiente salón. **No lleva clave**
-a propósito: del toque accidental protege la confirmación del propio botón, y el riesgo que
-queda (que alguien encuentre la URL) sólo descuadraría un número en pantalla — las respuestas
-están a salvo en Zoho y se ve al instante.
+El botón `RESET` del panel pone el contador a cero para el siguiente salón: **sólo eso**, no
+toca nada más. **No lleva clave** a propósito: del toque accidental protege la confirmación del
+propio botón, y el riesgo que queda (que alguien encuentre la URL) sólo descuadraría un número
+en pantalla — las respuestas están a salvo en Zoho y se ve al instante.
 
 ## Configuración en Zoho
 
