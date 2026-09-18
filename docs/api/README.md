@@ -10,134 +10,117 @@ Backend serverless desplegado en Vercel.
 
 ### `GET /api/qr-scan`
 
-Registra un escaneo de QR y redirige al encuestado a la encuesta de Zoho.
+Es el destino del QR proyectado. Cuenta el escaneo y redirige al alumno a la encuesta.
 
 **Input:**
 - Método: `GET` (también acepta `POST`, `OPTIONS`)
+- Parámetro opcional `?s=<sesion>` (por defecto `default`)
 
 **Output:**
-- Success: HTTP 302 redirect a `ZOHO_SURVEY_URL`
-- Error: HTTP 500 `{ error: "Error al procesar la solicitud de escaneo QR." }`
-- OPTIONS: HTTP 204
+- HTTP **302** a `ZOHO_SURVEY_URL` (siempre, incluso si el conteo falla)
+- HTTP 405 `{ error: "Método no permitido." }` para otros métodos
+- HTTP 204 para `OPTIONS`
 
-**Side effects:**
-- Incrementa `survey_counts/scanned` en Firebase Realtime Database vía `transaction()` atómica.
+**Efectos:**
+- Incrementa `sessions/<sesion>/scanned` con un incremento atómico resuelto en el servidor de
+  Firebase (`ServerValue.increment`), sin ciclo leer-modificar-escribir.
+- Deja la cookie `escaneo_<sesion>` (HttpOnly, SameSite=Lax, 20 minutos) para no contar dos
+  veces el mismo celular.
+
+**Robustez:** el contador es lo de menos. Si Firebase falla, **igual se redirige a la
+encuesta**: lo que se pierde es un escaneo, nunca la respuesta del alumno.
 
 ---
 
-### `POST /api/zoho-webhook`
+### `GET /api/done`
 
-Recibe notificaciones de Zoho Survey cuando un encuestado completa la encuesta.
-
-**Headers:**
-```
-Content-Type: application/json
-X-Webhook-Secret: <ZOHO_WEBHOOK_SECRET>
-```
+Lo llama la **página final de la encuesta de Zoho** («Redirigir a nueva página»). No es un
+webhook: no hay cabeceras ni secretos que configurar, sólo pegar la URL una vez en Zoho.
 
 **Input:**
-- Método: `POST` (también acepta `OPTIONS`)
-- Body (JSON):
-```json
-{
-  "response_status": "COMPLETED",
-  "webhook_event": "response_completed",
-  "response_id": "unique-response-id-from-zoho"
-}
-```
+- Método: `GET` (otros métodos → HTTP 405)
+- Parámetro opcional `?s=<sesion>` (por defecto `default`)
 
 **Output:**
-- Success (nueva respuesta): HTTP 200 `{ message: "Webhook de Zoho procesado con éxito.", completed: true }`
-- Success (respuesta ya procesada): HTTP 200 `{ message: "Webhook ya fue procesado.", completed: false }`
-- Secret inválido o ausente: HTTP 401 `{ error: "Unauthorized: invalid webhook secret." }`
-- Secret no configurado en el servidor: HTTP 503 `{ error: "Webhook secret not configured." }`
-- Payload inválido: HTTP 400 `{ error: "Payload de webhook inválido o incompleto." }`
-- Error interno: HTTP 500 `{ error: "Error interno del servidor al procesar el webhook." }`
-- OPTIONS: HTTP 204
+- HTTP 200 con una página HTML de agradecimiento
+- HTTP 405 `{ error: "Método no permitido." }`
 
-**Side effects:**
-- Incrementa `survey_counts/completed` vía `transaction()` atómica.
-- Guarda `processed_responses/<response_id>` para evitar conteos duplicados.
+**Efectos:**
+- Incrementa `sessions/<sesion>/completed`.
+- Deja la cookie `terminado_<sesion>` para no contar dos veces si el alumno recarga.
 
-**Seguridad:**
-- El header `X-Webhook-Secret` debe coincidir con la variable de entorno `ZOHO_WEBHOOK_SECRET`, comparada en tiempo constante (`crypto.timingSafeEqual`).
-- **Falla cerrado:** sin `ZOHO_WEBHOOK_SECRET` el webhook responde 503 y no registra nada, en lugar de aceptar cualquier petición.
+**Robustez:** aunque falle el conteo, el alumno **siempre** ve el agradecimiento.
 
 ---
 
 ### `GET /api/get-counts`
 
-Retorna los contadores de una sesión para el dashboard frontend.
+Devuelve los contadores para el panel.
 
 **Input:**
 - Método: `GET` (también acepta `OPTIONS`)
 - Parámetro opcional `?s=<sesion>` (por defecto `default`)
 
-**Output:**
-- Success: HTTP 200
+**Output:** HTTP 200
+
 ```json
-{
-  "scanned": 42,
-  "completed": 35,
-  "pending": 7,
-  "sessionId": "salon-302-20set-1100"
-}
+{ "scanned": 30, "completed": 28, "pending": 2, "sessionId": "default" }
 ```
-- Método no permitido: HTTP 405 `{ error: "Método no permitido." }`
-- Error: HTTP 500 `{ error: "Error interno del servidor al obtener los contadores." }`
-- OPTIONS: HTTP 204
 
-**Side effects:** Ninguno. Solo lectura de Firebase (`sessions/<sesion>`).
+- HTTP 405 `{ error: "Método no permitido." }`
+- HTTP 500 `{ error: "Error interno del servidor al obtener los contadores." }`
+- HTTP 204 para `OPTIONS`
 
-**Nota:** una sesión que todavía no ha empezado devuelve `{ scanned: 0, completed: 0, pending: 0 }` sin error, en lugar de fallar.
+**Efectos:** ninguno. Sólo lectura de `sessions/<sesion>`.
+
+**Nota:** `pending` se calcula en el servidor como `scanned − completed`, nunca negativo, y
+una sesión sin empezar devuelve ceros sin error.
 
 ---
 
 ### `POST /api/reset-counts`
 
-Reinicia los contadores `scanned` y `completed` a cero.
-
-**Headers:**
-```
-Content-Type: application/json
-X-Reset-Secret: <RESET_COUNTS_SECRET>
-```
+El botón `RESET` del panel: pone los contadores a cero para el siguiente salón.
 
 **Input:**
 - Método: `POST` (también acepta `OPTIONS`)
+- Cuerpo: vacío
 
-**Output:**
-- Success: HTTP 200
+**Output:** HTTP 200
+
 ```json
 {
   "message": "Contadores reseteados exitosamente.",
-  "previousCounts": {
-    "scanned": 5,
-    "completed": 3
-  }
+  "sessionId": "default",
+  "previousCounts": { "scanned": 30, "completed": 29 }
 }
 ```
-- Clave inválida o ausente: HTTP 401 `{ error: "Unauthorized: invalid reset secret." }`
-- Clave no configurada en el servidor: HTTP 503 `{ error: "Reset endpoint not configured." }`
-- Método no permitido: HTTP 405 `{ error: "Método no permitido." }`
-- Error interno: HTTP 500 `{ error: "Error interno del servidor al resetear contadores." }`
-- OPTIONS: HTTP 204
 
-**Side effects:**
-- Establece `survey_counts` a `{ scanned: 0, completed: 0 }`.
+- HTTP 405 `{ error: "Método no permitido." }`
+- HTTP 500 `{ error: "Error interno del servidor al resetear contadores." }`
+- HTTP 204 para `OPTIONS`
 
-**Seguridad:**
-- Operación destructiva: **falla cerrado**. Sin `RESET_COUNTS_SECRET`, el endpoint responde 503 y no resetea nada.
-- La clave se envía en la cabecera `X-Reset-Secret` y se compara en tiempo constante (`crypto.timingSafeEqual`).
-- La clave **no** se incluye en el bundle del frontend: la teclea el operador en el dashboard en cada operación.
+**Efectos:** deja `sessions/<sesion>` en `{ scanned: 0, completed: 0 }`.
+
+**Decisión de diseño:** no pide clave. Del toque accidental protege la confirmación del propio
+botón, y lo que un tercero podría conseguir con la URL es descuadrar un número en pantalla:
+las respuestas están en Zoho y el encuestador lo ve al instante.
 
 ---
 
 ## CORS
 
-Todos los endpoints habilitan CORS con origen `*` para permitir llamadas desde GitHub Pages.
+Todos los endpoints habilitan CORS con origen `*`, porque el panel se sirve desde GitHub Pages.
 
 ## Notas técnicas
 
-- Las escrituras en Firebase usan `transaction()` para garantizar atomicidad ante concurrencia.
-- El campo `response_id` se sanitiza antes de usarse como clave en Firebase RTDB.
+- **Incrementos atómicos:** los contadores se incrementan con `ServerValue.increment` en el
+  servidor de Firebase. Bajo la ráfaga de un salón entero (~30 escaneos a la vez) esto evita
+  los reintentos del ciclo leer-modificar-escribir y la latencia que espera el alumno.
+- **Sesiones:** los contadores viven en `sessions/<sesion>/`. La campaña usa `default`; el
+  parámetro `?s=` se mantiene porque los QR antiguos lo llevan y no estorba.
+- **Deduplicación:** por cookie, no por IP. Una cookie por sesión (`escaneo_<sesion>`,
+  `terminado_<sesion>`) evita el doble conteo del mismo celular sin depender de la red del
+  campus.
+- **Enrutado:** `apps/backend/vercel.json` declara las rutas una a una. Un endpoint nuevo que
+  no se añada ahí **devuelve 404 sin que el CI avise**.

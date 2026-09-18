@@ -1,219 +1,217 @@
 # survey-tracker
 
-Sistema de monitoreo en tiempo real para encuestas de satisfacción universitaria. Rastrea escaneos QR y respuestas completadas mediante una arquitectura serverless con dashboard web.
+Sistema de monitoreo en vivo para las encuestas de satisfacción de la Universidad de Lima.
+El alumno escanea un QR proyectado en el salón y el panel muestra, en el acto, cuántos
+escanearon, cuántos terminaron y cuántos quedan **pendientes** — para que el encuestador sepa
+cuándo puede pasar al siguiente salón.
 
 ## URLs del proyecto
 
-- **Dashboard:** https://universidad-de-lima.github.io/survey-tracker/
-- **Encuesta Zoho:** https://survey.zohopublic.com/zs/ZKC54z
-- **Backend (Vercel):** https://qr-smoky-theta.vercel.app
+- **Panel (es lo que se proyecta en el salón):** https://universidad-de-lima.github.io/survey-tracker/
+- **Backend:** https://qr-smoky-theta.vercel.app
+- **Encuesta (Zoho Survey):** https://survey.zohopublic.com/zs/ZKC54z
 
-## Arquitectura
+## Cómo funciona
 
 ```
-Usuario escanea QR
-        │
-        ▼
-┌─────────────────┐     Redirige a encuesta Zoho
-│ /api/qr-scan    │◄──────────────────────────────┐
-│   (Vercel)      │                             │
-└────────┬────────┘                             │
-         │                                      │
-         ▼                                      │
-  Firebase RTDB                                 │
-  survey_counts/                                │
-  ├─ scanned: N                                 │
-  └─ completed: N                               │
-         ▲                                      │
-         │                                      │
-         │     Webhook Zoho                     │
-         └────/api/zoho-webhook ────────────────┘
-                   (Vercel)
-
-Dashboard (GitHub Pages)
-  │
-  └─► Polling cada 5s a /api/get-counts
-  └─► POST /api/reset-counts (botón + clave de operador)
+              QR FIJO (el mismo toda la campaña, se proyecta)
+                          │
+                          ▼
+                   /api/qr-scan ──── cuenta el escaneo ──► redirige a la encuesta de Zoho
+                          │          (deja una cookie para no
+                          │           contar dos veces el mismo celular)
+                          ▼
+              el alumno responde y pulsa ENVIAR
+                          │
+                          ▼
+                   /api/done ──── cuenta la finalización ──► «¡Gracias!»
+                          ▲
+                          │
+   PANEL PROYECTADO ── lee /api/get-counts cada 5 s
+                     └─ botón RESET ──► /api/reset-counts
 ```
+
+En Firebase Realtime Database hay **un único contador**:
+
+```
+sessions/default/scanned      escaneos
+sessions/default/completed    encuestas terminadas
+```
+
+`pending` (= `scanned − completed`) se calcula en el servidor, nunca en el navegador.
 
 ## Stack tecnológico
 
 | Capa | Tecnología | Plan |
 |---|---|---|
-| Frontend | React + Vite + TypeScript + Tailwind CSS | GitHub Pages (gratuito) |
+| Panel | React + Vite + TypeScript + Tailwind CSS | GitHub Pages (gratuito) |
 | Backend | Node.js serverless (Vercel Functions) | Vercel Hobby (gratuito) |
-| Base de datos | Firebase Realtime Database | Spark (gratuito) |
-| Encuestas | Zoho Survey | Pagado (único costo) |
-| CI/CD | GitHub Actions | Gratuito |
+| Contador | Firebase Realtime Database | Spark (gratuito) |
+| Encuesta | Zoho Survey | Plan contratado por la Universidad |
+
+## El QR
+
+- Es **uno solo y fijo**: `https://qr-smoky-theta.vercel.app/api/qr-scan`.
+- **Apunta al contador, no directamente a Zoho.** Ese salto es lo que permite contar el
+  escaneo: sin él no se cuenta nada.
+- Lo genera `scripts/generar_qr.py` en cada despliegue del frontend y queda publicado en
+  `https://universidad-de-lima.github.io/survey-tracker/qr/encuesta.png`, que es lo que el
+  panel muestra en pantalla. No hay que generarlo ni subirlo a mano.
+
+## Doble escaneo
+
+Cuando un celular escanea, el servidor le deja una cookie (`escaneo_default`). Así, recargar
+la página o volver a escanear **no infla el contador** — que es justo lo que impediría que
+«Pendientes» llegara a cero y dejaría al encuestador esperando. La misma idea se aplica a la
+finalización (`terminado_default`), para no contar dos veces si el alumno recarga la página
+de agradecimiento.
+
+Las cookies caducan a los 20 minutos.
+
+> **Limitación conocida (pendiente de corregir):** el reset no puede borrar las cookies que
+> ya están repartidas en los teléfonos, así que un mismo celular que vuelva a escanear
+> **después** de un reset no se cuenta hasta que su cookie caduque. Dentro de un salón no
+> afecta; sólo aparece al probar «escaneo → reset → escaneo» con el mismo teléfono.
+
+## Reset
+
+El botón `RESET` del panel pone el contador a cero para el siguiente salón. **No lleva clave**
+a propósito: del toque accidental protege la confirmación del propio botón, y el riesgo que
+queda (que alguien encuentre la URL) sólo descuadraría un número en pantalla — las respuestas
+están a salvo en Zoho y se ve al instante.
+
+## Configuración en Zoho
+
+Una sola cosa, **en la encuesta a la que apunta el QR** (`survey.zohopublic.com/zs/ZKC54z`):
+
+**CONFIGURACIÓN → Página final de la encuesta → «Redirigir a nueva página»**
+
+```
+https://qr-smoky-theta.vercel.app/api/done
+```
+
+Sin parámetros ni cabeceras. Cuando el alumno pulsa ENVIAR, Zoho lo redirige aquí, se cuenta
+la finalización y ve un mensaje de agradecimiento. Si esto no está configurado, «Escanearon»
+sube pero «Terminaron» se queda en cero.
+
+### Restricción de respuestas duplicadas — PENDIENTE PARA PRODUCCIÓN
+
+En **Publicar → Restricciones → Restricciones de respuesta** Zoho permite limitar a una
+respuesta por **IP** o por **dispositivo (cookie)**.
+
+| Opción | Cuándo usarla |
+|---|---|
+| **Una respuesta por dispositivo (cookie)** | **Recomendada para el salón.** Va atada al teléfono, no a la red, así que no puede tumbar a un salón entero |
+| **Una respuesta por IP** | **NO activarla sin probarla antes.** En una universidad muchos alumnos comparten la misma IP pública (wifi del campus): el primero que responda **bloquearía a todos los demás** |
+
+Actualmente está **desactivada** (fase de pruebas, con pocos celulares).
+
+**Antes de pasar a producción:**
+1. Decidir el modo (recomendado: por dispositivo).
+2. Probarla con **dos celulares en la misma wifi** y comprobar que el segundo sí puede responder.
+3. Activarla en la encuesta real.
+
+## Antes de pasar a producción — lista de comprobación
+
+- [ ] Configurar la redirección de la página final en Zoho (`/api/done`).
+- [ ] Decidir y **activar** la restricción de respuestas duplicadas (recomendado: por dispositivo).
+- [ ] Verificar con dos celulares en la misma wifi que la restricción elegida no bloquea al segundo.
+- [ ] Pulsar `RESET` para dejar el contador en cero antes del primer salón.
+- [ ] Proyectar el panel en un salón real y comprobar que el QR se lee desde las últimas filas.
+- [ ] Acordar quién pulsa `RESET` y con qué criterio («Pendientes» = 0).
+
+## Endpoints de la API
+
+Detalle completo en [docs/api/README.md](./docs/api/README.md).
+
+| Método | Endpoint | Descripción |
+|---|---|---|
+| GET | `/api/qr-scan` | Cuenta el escaneo y redirige a la encuesta de Zoho |
+| GET | `/api/done` | Cuenta la finalización (lo llama Zoho desde la página final) |
+| GET | `/api/get-counts` | Devuelve los contadores actuales |
+| POST | `/api/reset-counts` | Pone los contadores a cero |
 
 ## Estructura del proyecto
 
 ```
 survey-tracker/
-├── .github/workflows/        # CI/CD: lint, test, build, deploy, security
+├── .github/workflows/            # CI (lint, tipos, tests, build) y despliegue del panel
 ├── apps/
-│   ├── backend/              # Serverless API (Vercel)
-│   │   ├── api/              # Endpoints
-│   │   │   ├── get-counts.js
-│   │   │   ├── qr-scan.js
-│   │   │   ├── reset-counts.js
-│   │   │   └── zoho-webhook.js
-│   │   ├── lib/              # Utilidades compartidas
-│   │   │   └── firebase.js   # Inicialización de Firebase Admin
-│   │   ├── api/__tests__/    # Tests unitarios
-│   │   ├── .env.example
-│   │   ├── package.json
-│   │   └── vercel.json
-│   └── frontend/             # Dashboard React + Vite
-│       ├── src/              # Aplicación React
-│       ├── public/           # Assets estáticos
-│       ├── index.html
-│       ├── package.json
-│       └── vite.config.ts
-├── packages/
-│   ├── eslint-config/        # Configuración compartida de ESLint
-│   ├── shared-types/         # Tipos TypeScript compartidos
-│   └── tsconfig/             # Configuraciones TypeScript compartidas
-├── docs/api/                 # Documentación de endpoints
-├── package.json
-├── pnpm-workspace.yaml
-└── turbo.json
+│   ├── backend/
+│   │   ├── api/
+│   │   │   ├── qr-scan.js        # cuenta el escaneo y redirige
+│   │   │   ├── done.js           # cuenta la finalización + página de gracias
+│   │   │   ├── get-counts.js     # contadores para el panel
+│   │   │   └── reset-counts.js   # botón RESET
+│   │   ├── lib/
+│   │   │   ├── firebase.js       # Firebase Admin + incremento atómico
+│   │   │   ├── cookies.js        # cookies anti-duplicado
+│   │   │   └── sessions.js       # rutas de la sesión y cálculo de contadores
+│   │   └── vercel.json           # enrutado de los endpoints
+│   └── frontend/                 # Panel React + Vite
+│       └── src/features/dashboard/
+├── scripts/generar_qr.py         # genera el QR fijo en cada despliegue
+├── docs/api/                     # Documentación de endpoints
+└── packages/                     # Configuración y tipos compartidos
 ```
 
 ## Variables de entorno
 
-### Backend (`apps/backend/.env`)
+### Backend (Vercel)
 
 ```env
 # Firebase Admin SDK
 FIREBASE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"..."}'
 FIREBASE_DATABASE_URL=https://your-project.firebaseio.com
 
-# Zoho
+# Zoho: a dónde se redirige al alumno después de escanear el QR.
 ZOHO_SURVEY_URL=https://survey.zohopublic.com/zs/ZKC54z
-ZOHO_WEBHOOK_SECRET=your-secure-random-secret
-
-# Reset de contadores (cabecera X-Reset-Secret).
-# Si no se define, POST /api/reset-counts responde 503 y no resetea nada.
-RESET_COUNTS_SECRET=your-secure-random-secret
 
 # Environment
 NODE_ENV=production
 ```
 
-### Frontend (build time)
+No hay claves ni secretos adicionales: el reset no pide clave y Zoho se conecta por la
+redirección de la página final, sin cabeceras.
 
-Configurar en el repositorio de GitHub como variable `VITE_API_BASE_URL`:
+### Panel (variable de repositorio en GitHub)
 
 ```
 VITE_API_BASE_URL=https://qr-smoky-theta.vercel.app/api
 ```
 
-## Configuración del webhook de Zoho Survey
-
-1. En Zoho Survey, ir a **Integraciones → Webhook**.
-2. Configurar la URL del webhook:
-   ```
-   https://qr-smoky-theta.vercel.app/api/zoho-webhook
-   ```
-3. Agregar un header personalizado:
-   ```
-   X-Webhook-Secret: <ZOHO_WEBHOOK_SECRET>
-   ```
-4. El valor debe coincidir exactamente con la variable de entorno `ZOHO_WEBHOOK_SECRET` en Vercel.
-5. Evento recomendado: `response_completed`.
-
-El backend valida el header `X-Webhook-Secret` y rechaza cualquier request que no coincida (HTTP 401). Si `ZOHO_WEBHOOK_SECRET` no está configurado, el webhook responde **503** y no registra nada: falla cerrado (antes aceptaba cualquier petición sin autenticación).
-
-## Sesiones: una por salón
-
-Los contadores viven en `sessions/<sesion>/` en lugar de un contador global. Cada salón encuestado usa su propia sesión, así que **los conteos nunca se mezclan y no hace falta reiniciar nada entre salones**: al pasar al siguiente salón se estrena otra sesión y el historial de la campaña se conserva.
-
-- La sesión se indica con `?s=<sesion>` en la URL (por ejemplo `?s=salon-302-20set-1100`). La sesión nace sola con el primer escaneo: no hay que darla de alta.
-- Sin `?s=`, se usa la sesión `default`, que es la que usaban los QR anteriores: el comportamiento previo sigue funcionando igual.
-- En el QR se puede añadir `&d=<dispositivo>` para que cada dispositivo cuente **un solo escaneo** por sesión: recargar la página ya no infla el contador.
-- Los contadores se incrementan de forma **atómica** en Firebase (sin ciclo leer-modificar-escribir), lo que evita la contención cuando un salón entero escanea a la vez.
-
-Estructura en Firebase RTDB:
-
-```
-sessions/<sesion>/scanned
-sessions/<sesion>/completed
-sessions/<sesion>/devices/<dispositivo>     # dedupe de escaneos
-sessions/<sesion>/processed/<respuesta>     # dedupe de completadas
-```
-
-La ruta antigua `survey_counts/` queda obsoleta y puede borrarse desde la consola de Firebase.
-
-## Reset de contadores
-
-El botón del dashboard pide una **clave de operador** y la envía en la cabecera `X-Reset-Secret`. La clave no se incluye en el bundle del frontend (es un sitio estático público) y no se guarda en el navegador.
-
-1. Definir `RESET_COUNTS_SECRET` en Vercel con un valor aleatorio largo.
-2. Entregar ese valor a quien deba poder resetear los contadores.
-3. Sin la variable configurada, `POST /api/reset-counts` responde **503** y no resetea nada (falla cerrado).
-
-El reset pone a cero la sesión indicada (`?s=`, por defecto `default`) y además borra los dispositivos y las respuestas ya vistas, de modo que esa sesión vuelve a contar desde el principio. Con el modelo de sesiones, **el reset deja de ser necesario** entre salones.
-
-## Endpoints de la API
-
-Ver [docs/api/README.md](./docs/api/README.md) para el detalle completo.
-
-| Método | Endpoint | Descripción |
-|---|---|---|
-| GET | `/api/qr-scan` | Registra un escaneo y redirige a la encuesta Zoho |
-| POST | `/api/zoho-webhook` | Recibe notificación de encuesta completada |
-| GET | `/api/get-counts` | Retorna contadores actuales |
-| POST | `/api/reset-counts` | Reinicia contadores a cero (requiere `X-Reset-Secret`) |
-
-## Seguridad e idempotencia
-
-- **Webhook protegido:** requiere header `X-Webhook-Secret`, comparado en tiempo constante. Si `ZOHO_WEBHOOK_SECRET` no está configurado, el endpoint responde 503 en lugar de quedar abierto.
-- **Reset protegido:** `POST /api/reset-counts` exige la cabecera `X-Reset-Secret`, comparada en tiempo constante. Si `RESET_COUNTS_SECRET` no está configurado, el endpoint responde 503 en lugar de quedar abierto.
-- **Idempotencia:** cada `response_id` de Zoho se registra en `processed_responses/` para evitar conteos duplicados si Zoho reintenta el webhook.
-- **Sanitización:** los `response_id` se limpian antes de usarse como claves de Firebase RTDB.
-
 ## Desarrollo
 
 ```bash
-# Instalar dependencias
 pnpm install
-
-# Desarrollo frontend
 pnpm --filter @survey-tracker/frontend dev
-
-# Desarrollo backend (Vercel CLI)
-pnpm --filter @survey-tracker/backend dev:vercel
-
-# Lint
 pnpm lint
-
-# Type check
-pnpm exec turbo type-check
-
-# Tests
 pnpm test
-
-# Build frontend
+pnpm exec turbo type-check
 pnpm --filter @survey-tracker/frontend build
 ```
 
 ## Despliegue
 
-- **Backend:** se despliega automáticamente en Vercel al hacer push a `main` (configurar integración Vercel).
-- **Frontend:** GitHub Actions ejecuta build y despliega a GitHub Pages cuando cambian archivos de `apps/frontend/` o `packages/`.
+- **Backend:** Vercel lo despliega al hacer push a `main`.
+- **Panel:** GitHub Actions construye y publica en GitHub Pages cuando cambia algo de
+  `apps/frontend/`, `packages/`, `scripts/` o el propio workflow. En ese mismo proceso se
+  regenera el QR.
+
+> **Aviso:** `apps/backend/vercel.json` declara las rutas **una a una**. Un endpoint nuevo
+> que no se añada ahí se compila pero devuelve **404**, y ni el CI ni Vercel avisan.
 
 ## Límites y consideraciones
 
-El proyecto está diseñado para funcionar dentro de los planes gratuitos:
+| Servicio | Límite gratuito | Uso real |
+|---|---|---|
+| Vercel Hobby | 1.000.000 invocaciones/mes | ~30.000/mes (**3 %**) |
+| Firebase RTDB Spark | 100 conexiones simultáneas · 1 GB almacenado · 10 GB descargado/mes | ~0,15 % |
+| GitHub Pages | 1 GB almacenamiento · 100 GB tráfico/mes | despreciable |
 
-| Servicio | Límite gratuito relevante |
-|---|---|
-| Vercel Hobby | ~125.000 invocaciones serverless/mes |
-| Firebase RTDB Spark | 100 conexiones simultáneas, 1 GB descargado/mes |
-| GitHub Pages | 1 GB almacenamiento, 100 GB bandwidth/mes |
-
-Para **~250 encuestas/día**, la carga es muy baja. El dashboard usa polling cada 5 segundos, lo cual es razonable para un número moderado de espectadores simultáneos.
+Medición con 30 peticiones simultáneas contra `/api/get-counts`: **30/30 correctas**, sin
+errores. El único techo real es el de **100 conexiones simultáneas** de Firebase Spark, que
+sólo se alcanzaría con un pico muy superior al previsto.
 
 ## Licencia
 

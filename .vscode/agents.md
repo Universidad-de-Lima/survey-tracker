@@ -1,101 +1,118 @@
 # survey-tracker — VS Code Agents Configuration
 
+Orientation notes for AI agents working in this repository. Everything here describes the
+code **as it actually is**; the canonical docs are `README.md` and `docs/api/README.md`.
+
 ## Project Overview
-Monorepo for university survey tracking system.
-- **Frontend**: React + Vite + TypeScript (apps/frontend)
-- **Backend**: Fastify + TypeScript + Prisma (apps/backend)
-- **Database**: Firebase Realtime Database (current) → PostgreSQL (migrating)
-- **Package Manager**: pnpm
-- **Monorepo Tool**: Turborepo
 
-## Architecture Rules
+Monorepo for a live survey-tracking panel used in university classrooms.
 
-### Monorepo Structure
+- **Frontend**: React + Vite + TypeScript, deployed to GitHub Pages (`apps/frontend`)
+- **Backend**: Vercel serverless functions in **plain JavaScript (ESM)** — not Fastify,
+  not TypeScript, not Prisma (`apps/backend`)
+- **Counter**: Firebase Realtime Database, project `encuesta-pregrado`, `sessions/default/*`
+- **Survey**: Zoho Survey (external)
+- **Package Manager**: pnpm · **Monorepo tool**: Turborepo
+
+## What the system does
+
+The QR projected in a classroom points to `/api/qr-scan`, which counts the scan and redirects
+the student to the Zoho survey. When the student submits, Zoho's end page redirects to
+`/api/done`, which counts the completion. The panel polls `/api/get-counts` and the surveyor
+presses `RESET` (`/api/reset-counts`) before moving to the next classroom.
+
+## Repository structure
+
 ```
 survey-tracker/
 ├── apps/
-│   ├── frontend/     # React SPA (Vite)
-│   └── backend/      # Fastify API server
-├── packages/
-│   ├── ui/           # Shared UI components
-│   ├── shared-types/ # Shared TypeScript types
-│   ├── eslint-config/# Shared ESLint config
-│   └── tsconfig/     # Shared TypeScript configs
-├── docs/             # Architecture & API documentation
-├── tests/            # E2E and integration tests
-└── infrastructure/   # Docker, CI/CD configs
+│   ├── backend/
+│   │   ├── api/                 # endpoints: qr-scan, done, get-counts, reset-counts
+│   │   ├── lib/                 # firebase.js, cookies.js, sessions.js
+│   │   └── vercel.json          # explicit route table (see Sensitive Points #1)
+│   └── frontend/
+│       └── src/
+│           ├── app/             # providers + layouts
+│           ├── features/dashboard/
+│           ├── shared/
+│           ├── assets/          # (no committed QR: it is generated at deploy time)
+│           └── styles/
+├── packages/{eslint-config,shared-types,tsconfig}
+├── scripts/generar_qr.py        # generates the fixed QR during the frontend deploy
+├── docs/api/
+└── .github/workflows/           # ci.yml, deploy-frontend.yml, security.yml
 ```
 
-### Frontend Architecture (Feature-Based)
-```
-apps/frontend/src/
-├── app/          # Router, providers, layouts, store
-├── features/     # Feature modules (surveys, qr, dashboard, analytics)
-├── shared/       # Shared components, hooks, services, utils, types
-├── assets/       # Static assets
-├── styles/       # Global styles and theme
-└── main.tsx      # Entry point
-```
+There is no `packages/ui`, no `tests/`, no `infrastructure/`, and no database migration
+planned: the counter is Firebase RTDB and it stays that way.
 
-### Backend Architecture (Clean Architecture)
-```
-apps/backend/src/
-├── config/       # App configuration and env vars
-├── modules/      # Feature modules (surveys, qr, analytics, webhooks)
-├── middleware/    # Express/Fastify middleware
-├── shared/       # Shared utilities and helpers
-├── database/     # Prisma schema, migrations, seeds
-├── app.ts        # Fastify app setup
-└── server.ts     # Server entry point
-```
+## Coding conventions
 
-## Coding Conventions
+### Backend (`apps/backend`)
+- Plain `.js`, ESM, kebab-case filenames.
+- Endpoints are `export default async (req, res) => { ... }` (Vercel Node signature).
+- Shared logic lives in `lib/` and is imported by relative path; `lib/sessions.js` holds the
+  RTDB paths, `lib/cookies.js` the anti-duplicate cookies.
+- Comments explain *why*, in Spanish — keep that language for comments and logs.
+- Every endpoint validates method, answers `405` for the rest and `204` for `OPTIONS`.
 
-### File naming
-- **kebab-case** for files: `survey-service.ts`, `qr-controller.ts`
-- **PascalCase** for components: `DashboardCard.tsx`, `SurveyStats.tsx`
-- **camelCase** for variables/functions: `getCounts()`, `updateCounter()`
-- **UPPER_SNAKE_CASE** for constants: `BACKEND_API_URL`, `POLL_INTERVAL`
+### Shared
+- Prettier: `printWidth: 100`, single quotes, semicolons, trailing commas (`all`).
+- ESLint: **`import/order` is enforced — imports must be alphabetical** (`cookies` before
+  `firebase`) and **`eqeqeq` forbids `==`**. Both are common CI failures.
+- Prefer explicit, commented constants over magic numbers.
 
-### Imports
-- Use absolute imports with `@/` prefix for frontend, `@/` for backend
-- Group: builtin → external → internal → parent → sibling → index
-- No deep relative paths (e.g., `../../../../utils/`)
+## Sensitive points
 
-### TypeScript
-- Strict mode enabled globally
-- No `any` unless documented with JSDoc reason
-- Prefer `interface` over `type` for object shapes
-- Use `type` for unions, intersections, and primitives
-- Explicit return types on public API functions
-
-### Validation
-- All external input validated with Zod schemas
-- Environment variables validated at app startup
-- Webhook payloads validated before processing
-
-## Sensitive Points
-
-1. **Firebase transactions**: `qr-scan` and `zoho-webhook` use `transaction()` for atomic writes. Do NOT change to `set()` or `update()` without evaluating concurrency risks.
-2. **Survey counts structure**: `survey_counts/{ scanned, completed }` is shared between all endpoints. Changes break both backend and frontend.
-3. **CORS configuration**: All endpoints use `Access-Control-Allow-Origin: *`. Acceptable for GitHub Pages + Vercel, but restrict for production.
-4. **Webhook security**: `zoho-webhook` has no HMAC verification. Any client can POST to increment counters.
+1. **`vercel.json` declares routes one by one.** A new file under `api/` compiles fine and
+   still returns **404** because no route points at it — and neither CI nor Vercel warns you.
+   Add the route in the same commit as the endpoint.
+2. **Counters use atomic server-side increments** (`incrementBy` →
+   `ServerValue.increment`). Do **not** switch to `transaction()`: under a classroom burst
+   (~30 simultaneous scans) the read-modify-write retries pile up and the student waits
+   before being redirected.
+3. **The counter path is shared**: `sessions/default/{scanned,completed}`, read by
+   `get-counts` and written by `qr-scan`, `done` and `reset-counts`. Changing it means
+   changing every endpoint plus `lib/sessions.js`.
+4. **No secrets anywhere.** `POST /api/reset-counts` is intentionally unprotected (an
+   accidental tap is handled by the UI confirmation) and completions arrive through Zoho's
+   end-page redirect, so there is no webhook and no shared secret to configure.
+5. **The QR must point to `/api/qr-scan`, never straight to Zoho.** Otherwise nothing is
+   counted. It is generated by `scripts/generar_qr.py` on every frontend deploy.
+6. **The student must always reach the survey.** `qr-scan` redirects to Zoho even when the
+   counter fails, and `done` shows the thank-you page even when the counter fails. Never turn
+   a counting error into an error page.
+7. **`pnpm install` does not work on the `Q:` network drive** (SMB refuses symlinks) and
+   Turborepo cannot run there either. CI is the source of truth for lint, types and tests.
 
 ## Commands
 
 | Command | Description |
-|---------|-------------|
+|---|---|
 | `pnpm dev` | Start all apps in development mode |
 | `pnpm build` | Build all apps |
 | `pnpm lint` | Lint all apps |
-| `pnpm test` | Run all tests |
+| `pnpm test` | Run all tests (Vitest) |
+| `pnpm exec turbo type-check` | Run TypeScript type checking |
 | `pnpm format` | Format all files with Prettier |
-| `turbo type-check` | Run TypeScript type checking |
+
+On the network drive, run these through GitHub Actions instead (see Sensitive point #7).
+
+## Testing conventions
+
+- Vitest. Backend tests live in `api/__tests__/` and `lib/__tests__/`.
+- Firebase is mocked with a module-level `globalThis.dbStore.current` plus
+  `vi.doMock('../lib/firebase.js', ...)`, defined **before** the dynamic `await import()` of
+  the endpoint; `ref` must delegate to the spy of the current test.
+- What matters in tests: that the student always reaches the survey, that the same phone is
+  not counted twice, that `pending` never comes out `NaN` or negative, and that the reset
+  zeroes both counters.
 
 ## AI Agent Constraints
 
-- Do NOT modify Firebase initialization pattern without creating a shared module first
-- Do NOT change `survey_counts` DB structure without updating ALL consumers
-- Do NOT add new packages without running `pnpm install` afterward
-- Always run `turbo type-check` after modifying TypeScript files
-- Keep feature modules self-contained — do not centralize logic in shared/
+- **Change only what was explicitly authorised.** If you find an unrelated problem, stop and
+  report it instead of fixing it.
+- Do NOT change the Firebase counter structure without updating every consumer.
+- Do NOT add npm dependencies: the lockfile cannot be regenerated locally (Sensitive point #7).
+- Add every new endpoint to `vercel.json` (Sensitive point #1).
+- Keep `turbo type-check`, `pnpm lint` and `pnpm test` green before proposing a publish.
