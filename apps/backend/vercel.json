@@ -26,6 +26,18 @@
     {
       "src": "/api/health",
       "dest": "api/get-counts.js"
+    },
+    {
+      "src": "/api/registrar",
+      "dest": "api/registrar.js"
+    },
+    {
+      "src": "/api/done",
+      "dest": "api/done.js"
+    },
+    {
+      "src": "/api/sesion",
+      "dest": "api/sesion.js"
     }
   ]
 }
