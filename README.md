@@ -97,6 +97,8 @@ respuesta por **IP** o por **dispositivo (cookie)**.
 | **Una respuesta por dispositivo (cookie)** | Va atada al teléfono: el mismo celular no puede responder dos veces |
 | **Una respuesta por IP** | Va atada a la conexión a internet: una respuesta por IP |
 
+**La que se usa en este proyecto: una respuesta por IP.**
+
 **Antes de pasar a producción:**
 1. Activarla en la encuesta real.
 2. Probarla con **dos celulares** y comprobar que el segundo no se queda fuera.
@@ -104,7 +106,7 @@ respuesta por **IP** o por **dispositivo (cookie)**.
 ## Antes de pasar a producción — lista de comprobación
 
 - [ ] Configurar la redirección de la página final en Zoho (`/api/done`).
-- [ ] **Activar** la restricción de respuestas duplicadas.
+- [ ] **Activar** la restricción de respuestas duplicadas, con **una respuesta por IP**.
 - [ ] Verificar con dos celulares que no bloquea al segundo.
 - [ ] Pulsar `RESET` para dejar el contador en cero antes del primer salón.
 - [ ] Proyectar el panel en un salón real y comprobar que el QR se lee desde las últimas filas.
