@@ -6,7 +6,6 @@ on:
     paths:
       - 'apps/frontend/**'
       - 'packages/**'
-      - 'data/salones.csv'
       - 'scripts/**'
       - '.github/workflows/deploy-frontend.yml'
 
@@ -35,10 +34,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Generar el QR de cada salón (data/salones.csv)
+      - name: Generar el QR único de la campaña
         run: |
           pip install --quiet "qrcode[pil]"
-          python scripts/generar_qr.py
+          python scripts/generar_qr.py --url "${{ vars.VITE_API_BASE_URL }}/api/qr-scan"
       - run: pnpm --filter @survey-tracker/frontend build
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}

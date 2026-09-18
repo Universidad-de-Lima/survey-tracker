@@ -1,71 +1,66 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useResetCounts } from '@/features/dashboard/hooks/useSurveyCounts';
 
+const SEGUNDOS_PARA_CANCELAR = 10;
+
+/**
+ * RESET: pone los contadores a cero para el siguiente salón.
+ *
+ * No lleva clave a propósito. Lo único que hay que evitar es un toque accidental en
+ * la pantalla que se está proyectando, y de eso se encarga la confirmación —que
+ * además se cancela sola para no quedarse armada.
+ */
 export function ResetButton() {
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [operatorSecret, setOperatorSecret] = useState('');
+  const [confirmando, setConfirmando] = useState(false);
   const { mutate, isPending, isError, reset } = useResetCounts();
 
-  // La clave se teclea en cada operación y sólo vive en memoria: el dashboard es un
-  // sitio estático público, así que cualquier clave incluida en el bundle sería
-  // legible por cualquiera y no protegería nada.
-  const handleConfirm = () => {
-    mutate(operatorSecret, {
-      onSuccess: () => {
-        setShowConfirm(false);
-        setOperatorSecret('');
-      },
-    });
-  };
+  useEffect(() => {
+    if (!confirmando) {
+      return undefined;
+    }
 
-  const handleCancel = () => {
-    setShowConfirm(false);
-    setOperatorSecret('');
-    reset();
-  };
+    const temporizador = setTimeout(() => {
+      setConfirmando(false);
+      reset();
+    }, SEGUNDOS_PARA_CANCELAR * 1000);
 
-  if (showConfirm) {
+    return () => clearTimeout(temporizador);
+  }, [confirmando, reset]);
+
+  if (confirmando) {
     return (
-      <div className="p-4 bg-red-50 border border-red-300 rounded-lg">
-        <p className="text-sm text-red-800 font-medium mb-3 text-center">
-          ⚠️ ¿Resetear todos los contadores a cero? Esta acción no se puede deshacer.
+      <div className="bg-red-50 border-4 border-red-400 rounded-lg p-6">
+        <p className="text-xl sm:text-2xl font-bold text-red-800 text-center">
+          ¿Poner los contadores a cero?
         </p>
-        <label
-          htmlFor="reset-operator-secret"
-          className="block text-xs font-medium text-gray-700 mb-1"
-        >
-          Clave de operador
-        </label>
-        <input
-          id="reset-operator-secret"
-          type="password"
-          autoComplete="off"
-          value={operatorSecret}
-          onChange={(event) => setOperatorSecret(event.target.value)}
-          disabled={isPending}
-          placeholder="••••••••"
-          className="w-full mb-3 px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-black/50 disabled:opacity-50"
-        />
+        <p className="text-sm text-red-700 text-center mt-1">
+          Se cancela solo en {SEGUNDOS_PARA_CANCELAR} segundos.
+        </p>
+
         {isError && (
-          <p className="text-xs text-red-600 mb-2 text-center">
-            No se pudo resetear. Verifica la clave de operador e intenta nuevamente.
+          <p className="text-sm text-red-600 text-center mt-3">
+            No se pudo resetear. Revisa la conexión e intenta otra vez.
           </p>
         )}
-        <div className="flex gap-2 justify-center">
+
+        <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
           <button
-            onClick={handleCancel}
-            className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
+            onClick={() => {
+              setConfirmando(false);
+              reset();
+            }}
             disabled={isPending}
+            className="px-6 py-4 text-lg font-semibold bg-white text-gray-800 border-2 border-gray-400 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-50"
           >
             Cancelar
           </button>
           <button
-            onClick={handleConfirm}
-            className="px-4 py-2 text-sm bg-black text-white rounded-md hover:bg-gray-800 transition-colors disabled:opacity-50"
-            disabled={isPending || operatorSecret.length === 0}
+            onClick={() => mutate()}
+            disabled={isPending}
+            className="px-6 py-4 text-lg font-semibold bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50"
           >
-            {isPending ? 'Reseteando...' : 'Sí, resetear'}
+            {isPending ? 'Reseteando…' : 'Sí, a cero'}
           </button>
         </div>
       </div>
@@ -74,10 +69,13 @@ export function ResetButton() {
 
   return (
     <button
-      onClick={() => setShowConfirm(true)}
-      className="w-full px-4 py-3 text-sm bg-black text-white font-medium rounded-md hover:bg-gray-800 transition-colors"
+      onClick={() => setConfirmando(true)}
+      className="w-full px-6 py-6 text-2xl sm:text-3xl font-black tracking-widest bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
     >
-      Resetear Contadores
+      RESET
+      <span className="block mt-1 text-sm sm:text-base font-normal tracking-normal text-gray-300">
+        Contadores a cero para el siguiente salón
+      </span>
     </button>
   );
 }
