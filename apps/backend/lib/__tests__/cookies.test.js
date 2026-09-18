@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEDUPE_COOKIE_MAX_AGE_SECONDS, buildCookie, hasCookie } from '../cookies.js';
+import {
+  DEDUPE_COOKIE_MAX_AGE_SECONDS,
+  buildCookie,
+  dedupeCookieName,
+  hasCookie,
+} from '../cookies.js';
 
 describe('DEDUPE_COOKIE_MAX_AGE_SECONDS', () => {
-  it('lasts 20 minutes: within a visit dedupes, and before the next classroom it is gone', () => {
-    expect(DEDUPE_COOKIE_MAX_AGE_SECONDS).toBe(20 * 60);
-    expect(DEDUPE_COOKIE_MAX_AGE_SECONDS).toBeLessThan(30 * 60);
+  it('lasts 2 hours: enough for any classroom, and the reset does the real work', () => {
+    expect(DEDUPE_COOKIE_MAX_AGE_SECONDS).toBe(2 * 60 * 60);
+  });
+});
+
+describe('dedupeCookieName', () => {
+  it('includes the session generation, so a reset invalidates the cookies already out there', () => {
+    expect(dedupeCookieName('escaneo', 'default', 0)).toBe('escaneo_default_g0');
+    expect(dedupeCookieName('terminado', 'salon-302', 7)).toBe('terminado_salon-302_g7');
   });
 });
 

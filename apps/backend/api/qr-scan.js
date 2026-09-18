@@ -1,6 +1,11 @@
-import { buildCookie, hasCookie } from '../lib/cookies.js';
+import { buildCookie, dedupeCookieName, hasCookie } from '../lib/cookies.js';
 import { getFirebaseDb, incrementBy } from '../lib/firebase.js';
-import { applyCors, resolveSessionId, sessionScannedRef } from '../lib/sessions.js';
+import {
+  applyCors,
+  readSessionState,
+  resolveSessionId,
+  sessionScannedRef,
+} from '../lib/sessions.js';
 
 const db = getFirebaseDb();
 
@@ -25,18 +30,20 @@ export default async (req, res) => {
   }
 
   const sessionId = resolveSessionId(req);
-  const cookieName = `escaneo_${sessionId}`;
 
   // El alumno tiene que llegar a la encuesta SIEMPRE, incluso si el conteo falla:
   // lo que se pierde entonces es un escaneo, nunca su respuesta.
   try {
+    const { generacion } = await readSessionState(db, sessionId);
+    const cookieName = dedupeCookieName('escaneo', sessionId, generacion);
+
     if (hasCookie(req, cookieName)) {
-      console.log(`Escaneo repetido ignorado en ${sessionId}: el celular ya contaba.`);
+      console.log(`Escaneo repetido ignorado en ${sessionId} (generación ${generacion}).`);
     } else {
       // Incremento atómico en servidor: sin leer-modificar-escribir ni reintentos.
       await db.ref(sessionScannedRef(sessionId)).set(incrementBy(1));
       res.setHeader('Set-Cookie', buildCookie(cookieName));
-      console.log(`Escaneo contado en ${sessionId}.`);
+      console.log(`Escaneo contado en ${sessionId} (generación ${generacion}).`);
     }
   } catch (error) {
     console.error('Error al contar el escaneo (se redirige igual a la encuesta):', error);

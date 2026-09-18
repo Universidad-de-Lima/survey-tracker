@@ -27,19 +27,27 @@ export default async (req, res) => {
 
   try {
     const snapshot = await db.ref(sessionBase(sessionId)).once('value');
-    const previousCounts = toCounts(snapshot.val());
+    const value = snapshot.val();
+    const previousCounts = toCounts(value);
+
+    // El reset sube la generación: eso invalida al instante las cookies repartidas
+    // (que viven en los teléfonos y no se pueden borrar desde aquí), de modo que el
+    // mismo celular vuelve a contar en el salón siguiente.
+    const generacion = (Number(value?.generacion) || 0) + 1;
 
     // Un solo `set` sobre el nodo de la sesión: deja los contadores a cero y la
     // sesión lista para el siguiente salón.
     await db.ref(sessionBase(sessionId)).set({
       scanned: 0,
       completed: 0,
+      generacion,
     });
 
-    console.log(`Contadores reseteados en ${sessionId}.`, previousCounts);
+    console.log(`Contadores reseteados en ${sessionId} (generación ${generacion}).`, previousCounts);
     res.status(200).json({
       message: 'Contadores reseteados exitosamente.',
       sessionId,
+      generacion,
       previousCounts: {
         scanned: previousCounts.scanned,
         completed: previousCounts.completed,

@@ -58,11 +58,12 @@ describe('POST /api/reset-counts', () => {
     await resetCounts({ method: 'POST' }, res);
 
     expect(refMock).toHaveBeenCalledWith('sessions/default');
-    expect(setMock).toHaveBeenCalledWith({ scanned: 0, completed: 0 });
+    expect(setMock).toHaveBeenCalledWith({ scanned: 0, completed: 0, generacion: 1 });
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({
       message: 'Contadores reseteados exitosamente.',
       sessionId: 'default',
+      generacion: 1,
       previousCounts: { scanned: 10, completed: 7 },
     });
   });
@@ -75,6 +76,16 @@ describe('POST /api/reset-counts', () => {
 
     expect(refMock).toHaveBeenCalledWith('sessions/salon-9');
     expect(res.body.sessionId).toBe('salon-9');
+  });
+
+  it('raises the generation so the cookies handed out before are invalidated', async () => {
+    onceMock.mockResolvedValue({ val: () => ({ scanned: 30, completed: 30, generacion: 4 }) });
+
+    const res = createRes();
+    await resetCounts({ method: 'POST' }, res);
+
+    expect(setMock).toHaveBeenCalledWith({ scanned: 0, completed: 0, generacion: 5 });
+    expect(res.body.generacion).toBe(5);
   });
 
   it('leaves the counters at zero when they were already zero', async () => {
