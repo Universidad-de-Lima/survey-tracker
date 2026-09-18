@@ -1,5 +1,5 @@
-import { getFirebaseDb, incrementBy } from '../lib/firebase.js';
 import { buildCookie, hasCookie } from '../lib/cookies.js';
+import { getFirebaseDb, incrementBy } from '../lib/firebase.js';
 import { applyCors, resolveSessionId, sessionScannedRef } from '../lib/sessions.js';
 
 const db = getFirebaseDb();
