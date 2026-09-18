@@ -93,7 +93,7 @@ describe('POST /api/reset-counts', () => {
 
     await resetCounts({ method: 'POST' }, res);
 
-    expect(setMock).toHaveBeenCalledWith({ scanned: 0, completed: 0 });
+    expect(setMock).toHaveBeenCalledWith({ scanned: 0, completed: 0, generacion: 1 });
     expect(res.body.previousCounts).toEqual({ scanned: 0, completed: 0 });
   });
 
