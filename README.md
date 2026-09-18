@@ -92,23 +92,22 @@ sube pero «Terminaron» se queda en cero.
 En **Publicar → Restricciones → Restricciones de respuesta** Zoho permite limitar a una
 respuesta por **IP** o por **dispositivo (cookie)**.
 
-| Opción | Cuándo usarla |
+| Opción | Cómo funciona |
 |---|---|
-| **Una respuesta por dispositivo (cookie)** | **Recomendada para el salón.** Va atada al teléfono, no a la red, así que no puede tumbar a un salón entero |
-| **Una respuesta por IP** | **NO activarla sin probarla antes.** En una universidad muchos alumnos comparten la misma IP pública (wifi del campus): el primero que responda **bloquearía a todos los demás** |
+| **Una respuesta por dispositivo (cookie)** | Va atada al teléfono: el mismo celular no puede responder dos veces |
+| **Una respuesta por IP** | Va atada a la conexión a internet: una respuesta por IP |
 
 Actualmente está **desactivada** (fase de pruebas, con pocos celulares).
 
 **Antes de pasar a producción:**
-1. Decidir el modo (recomendado: por dispositivo).
-2. Probarla con **dos celulares en la misma wifi** y comprobar que el segundo sí puede responder.
-3. Activarla en la encuesta real.
+1. Activarla en la encuesta real.
+2. Probarla con **dos celulares** y comprobar que el segundo no se queda fuera.
 
 ## Antes de pasar a producción — lista de comprobación
 
 - [ ] Configurar la redirección de la página final en Zoho (`/api/done`).
-- [ ] Decidir y **activar** la restricción de respuestas duplicadas (recomendado: por dispositivo).
-- [ ] Verificar con dos celulares en la misma wifi que la restricción elegida no bloquea al segundo.
+- [ ] **Activar** la restricción de respuestas duplicadas.
+- [ ] Verificar con dos celulares que no bloquea al segundo.
 - [ ] Pulsar `RESET` para dejar el contador en cero antes del primer salón.
 - [ ] Proyectar el panel en un salón real y comprobar que el QR se lee desde las últimas filas.
 - [ ] Acordar quién pulsa `RESET` y con qué criterio («Pendientes» = 0).
