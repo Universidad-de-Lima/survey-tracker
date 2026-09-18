@@ -1,40 +1,16 @@
 import { getFirebaseDb, incrementBy } from '../lib/firebase.js';
-import {
-  applyCors,
-  resolveSessionId,
-  sessionDeviceRef,
-  sessionScannedRef,
-} from '../lib/sessions.js';
+import { buildCookie, hasCookie } from '../lib/cookies.js';
+import { applyCors, resolveSessionId, sessionScannedRef } from '../lib/sessions.js';
 
 const db = getFirebaseDb();
 
-function deviceIdFrom(req) {
-  const raw = req?.query?.d ?? req?.body?.deviceId;
-  const value = Array.isArray(raw) ? raw[0] : raw;
-
-  return value === undefined || value === null || String(value).trim() === ''
-    ? null
-    : String(value).trim();
-}
-
 /**
- * Un mismo dispositivo cuenta un solo escaneo por sesión: recargar la página o
- * volver a escanear el QR no infla el contador, que es lo que rompía el criterio
- * "encuestados pendientes = 0" para cerrar un salón.
+ * Lo llama el QR proyectado.
+ *
+ * Cuenta el escaneo y redirige a la encuesta. La cookie `escaneo_<sesión>` evita
+ * contar dos veces el mismo celular: sin ella, un alumno que reabre el enlace dejaría
+ * "Encuestas Pendientes" clavado en 1 y el encuestador no podría irse.
  */
-async function claimDevice(sessionId, deviceId) {
-  const result = await db
-    .ref(sessionDeviceRef(sessionId, deviceId))
-    .transaction((current) => {
-      if (current) {
-        return undefined; // abortar: este dispositivo ya se contó en esta sesión
-      }
-      return { firstSeenAt: new Date().toISOString() };
-    });
-
-  return Boolean(result?.committed);
-}
-
 export default async (req, res) => {
   applyCors(res, { methods: 'GET, POST, OPTIONS' });
 
@@ -49,25 +25,25 @@ export default async (req, res) => {
   }
 
   const sessionId = resolveSessionId(req);
-  const deviceId = deviceIdFrom(req);
+  const cookieName = `escaneo_${sessionId}`;
 
+  // El alumno tiene que llegar a la encuesta SIEMPRE, incluso si el conteo falla:
+  // lo que se pierde entonces es un escaneo, nunca su respuesta.
   try {
-    const shouldCount = deviceId ? await claimDevice(sessionId, deviceId) : true;
-
-    if (shouldCount) {
-      // Incremento atómico en servidor: sin leer-modificar-escribir y sin reintentos.
-      await db.ref(sessionScannedRef(sessionId)).set(incrementBy(1));
-      console.log(`Escaneo contado en la sesión ${sessionId}.`);
+    if (hasCookie(req, cookieName)) {
+      console.log(`Escaneo repetido ignorado en ${sessionId}: el celular ya contaba.`);
     } else {
-      console.log(`Escaneo repetido ignorado (sesión ${sessionId}): el dispositivo ya contaba.`);
+      // Incremento atómico en servidor: sin leer-modificar-escribir ni reintentos.
+      await db.ref(sessionScannedRef(sessionId)).set(incrementBy(1));
+      res.setHeader('Set-Cookie', buildCookie(cookieName));
+      console.log(`Escaneo contado en ${sessionId}.`);
     }
-
-    res.writeHead(302, {
-      Location: process.env.ZOHO_SURVEY_URL,
-    });
-    res.end();
   } catch (error) {
-    console.error('Error al procesar QR scan y redirigir:', error);
-    res.status(500).json({ error: 'Error al procesar la solicitud de escaneo QR.' });
+    console.error('Error al contar el escaneo (se redirige igual a la encuesta):', error);
   }
+
+  res.writeHead(302, {
+    Location: process.env.ZOHO_SURVEY_URL,
+  });
+  res.end();
 };

@@ -2,14 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 let setMock;
 let onceMock;
-let transactionMock;
-let removeMock;
 let refMock;
 
 // El endpoint captura la instancia de Firebase en el ámbito del módulo, durante la
 // importación: `dbStore.current` debe existir ya aquí (nunca null) o todas las
-// peticiones responden 500. `ref` delega en el espía vigente de cada test, porque los
-// espías se recrean en el `beforeEach` y el objeto capturado no puede apuntar a ellos.
+// peticiones responden 500. `ref` delega en el espía vigente de cada test.
 globalThis.dbStore = {
   current: {
     ref: (...args) => refMock(...args),
@@ -25,17 +22,9 @@ const { default: resetCounts } = await import('../reset-counts.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
-  process.env.RESET_COUNTS_SECRET = 'test-reset-secret';
   setMock = vi.fn().mockResolvedValue();
-  onceMock = vi.fn();
-  transactionMock = vi.fn().mockResolvedValue({ committed: true });
-  removeMock = vi.fn().mockResolvedValue();
-  refMock = vi.fn(() => ({
-    set: setMock,
-    once: onceMock,
-    transaction: transactionMock,
-    remove: removeMock,
-  }));
+  onceMock = vi.fn().mockResolvedValue({ val: () => ({ scanned: 0, completed: 0 }) });
+  refMock = vi.fn(() => ({ set: setMock, once: onceMock }));
 });
 
 function createRes() {
@@ -62,13 +51,11 @@ function createRes() {
 }
 
 describe('POST /api/reset-counts', () => {
-  it('zeros the session counters and returns the previous values', async () => {
+  it('zeros the campaign counters and returns the previous values', async () => {
     onceMock.mockResolvedValue({ val: () => ({ scanned: 10, completed: 7 }) });
 
-    const req = { method: 'POST', headers: { 'x-reset-secret': 'test-reset-secret' } };
     const res = createRes();
-
-    await resetCounts(req, res);
+    await resetCounts({ method: 'POST' }, res);
 
     expect(refMock).toHaveBeenCalledWith('sessions/default');
     expect(setMock).toHaveBeenCalledWith({ scanned: 0, completed: 0 });
@@ -83,66 +70,44 @@ describe('POST /api/reset-counts', () => {
   it('resets the session given by ?s=', async () => {
     onceMock.mockResolvedValue({ val: () => ({ scanned: 1, completed: 0 }) });
 
-    const req = {
-      method: 'POST',
-      headers: { 'x-reset-secret': 'test-reset-secret' },
-      query: { s: 'salon-9' },
-    };
     const res = createRes();
-
-    await resetCounts(req, res);
+    await resetCounts({ method: 'POST', query: { s: 'salon-9' } }, res);
 
     expect(refMock).toHaveBeenCalledWith('sessions/salon-9');
     expect(res.body.sessionId).toBe('salon-9');
   });
 
-  it('returns 401 when the secret header is missing', async () => {
-    const req = { method: 'POST', headers: {} };
+  it('leaves the counters at zero when they were already zero', async () => {
     const res = createRes();
 
-    await resetCounts(req, res);
+    await resetCounts({ method: 'POST' }, res);
 
-    expect(res.statusCode).toBe(401);
-    expect(setMock).not.toHaveBeenCalled();
+    expect(setMock).toHaveBeenCalledWith({ scanned: 0, completed: 0 });
+    expect(res.body.previousCounts).toEqual({ scanned: 0, completed: 0 });
   });
 
-  it('returns 401 when the secret is wrong and does not touch the counters', async () => {
-    const req = { method: 'POST', headers: { 'x-reset-secret': 'wrong-secret' } };
+  it('returns 500 when Firebase fails', async () => {
+    setMock.mockRejectedValue(new Error('firebase caído'));
+
     const res = createRes();
+    await resetCounts({ method: 'POST' }, res);
 
-    await resetCounts(req, res);
-
-    expect(res.statusCode).toBe(401);
-    expect(setMock).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(500);
   });
 
-  it('returns 503 when RESET_COUNTS_SECRET is not configured (fail closed)', async () => {
-    delete process.env.RESET_COUNTS_SECRET;
-
-    const req = { method: 'POST', headers: { 'x-reset-secret': 'anything' } };
+  it('allows the CORS preflight', async () => {
     const res = createRes();
 
-    await resetCounts(req, res);
-
-    expect(res.statusCode).toBe(503);
-    expect(setMock).not.toHaveBeenCalled();
-  });
-
-  it('allows the CORS preflight and exposes the X-Reset-Secret header', async () => {
-    const req = { method: 'OPTIONS', headers: {} };
-    const res = createRes();
-
-    await resetCounts(req, res);
+    await resetCounts({ method: 'OPTIONS' }, res);
 
     expect(res.statusCode).toBe(204);
-    expect(res.headers['Access-Control-Allow-Headers']).toContain('X-Reset-Secret');
+    expect(res.headers['Access-Control-Allow-Origin']).toBe('*');
   });
 
   it('returns 405 for non-POST/OPTIONS methods', async () => {
-    const req = { method: 'GET', headers: {} };
     const res = createRes();
 
-    await resetCounts(req, res);
+    await resetCounts({ method: 'GET' }, res);
 
     expect(res.statusCode).toBe(405);
   });

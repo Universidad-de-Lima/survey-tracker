@@ -1,26 +1,8 @@
 import { getFirebaseDb, incrementBy } from '../lib/firebase.js';
-import { queryParam, sessionCompletedRef } from '../lib/sessions.js';
+import { buildCookie, hasCookie } from '../lib/cookies.js';
+import { resolveSessionId, sessionCompletedRef } from '../lib/sessions.js';
 
 const db = getFirebaseDb();
-
-// 2 horas: el tiempo que puede tardar un alumno en volver, y muy por encima de lo
-// que dura una visita. Evita contar dos veces la misma finalización si el alumno
-// recarga la página de agradecimiento.
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 2;
-
-function cookieName(sessionId) {
-  return `encuesta_${sessionId}`;
-}
-
-function hasCookie(req, name) {
-  const raw = req?.headers?.cookie;
-
-  if (!raw) {
-    return false;
-  }
-
-  return raw.split(';').some((part) => part.trim().startsWith(`${name}=`));
-}
 
 function thanksPage() {
   return `<!doctype html>
@@ -50,10 +32,11 @@ function thanksPage() {
 }
 
 /**
- * Lo llama la página final de la encuesta de Zoho ("Redirigir a nueva página"),
- * que reenvía el parámetro `s` que viajó en la URL del alumno.
+ * Lo llama la página final de la encuesta de Zoho ("Redirigir a nueva página").
  *
- * Sustituye al webhook: no hay que configurar cabeceras ni secretos en Zoho.
+ * Sustituye al webhook: se pega esta URL una vez en la configuración de Zoho y no
+ * hay que montar cabeceras ni secretos. Si Zoho reenvía `?s=` se respeta; si no,
+ * cuenta en la sesión de la campaña (`default`), que es el caso normal.
  */
 export default async (req, res) => {
   if (req.method !== 'GET') {
@@ -61,42 +44,22 @@ export default async (req, res) => {
     return;
   }
 
-  const rawSession = queryParam(req, 's');
-  const sessionId =
-    rawSession === undefined || rawSession === null || String(rawSession).trim() === ''
-      ? null
-      : String(rawSession).trim();
+  const sessionId = resolveSessionId(req);
+  const cookieName = `terminado_${sessionId}`;
 
-  // Sin `s` no se cuenta: es preferible perder una finalización a ensuciar el
-  // contador de otro salón (por ejemplo, la sesión heredada `default`).
-  if (!sessionId) {
-    console.warn('Llegó una finalización sin el parámetro `s`: no se cuenta.');
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.status(200).end(thanksPage());
-    return;
-  }
-
+  // Aunque el conteo falle, el alumno ya terminó: siempre ve el agradecimiento.
   try {
-    const name = cookieName(sessionId);
-
-    if (hasCookie(req, name)) {
-      console.log(`Finalización repetida ignorada en el salón ${sessionId}.`);
+    if (hasCookie(req, cookieName)) {
+      console.log(`Finalización repetida ignorada en ${sessionId}.`);
     } else {
       await db.ref(sessionCompletedRef(sessionId)).set(incrementBy(1));
-      console.log(`Finalización contada en el salón ${sessionId}.`);
-      res.setHeader(
-        'Set-Cookie',
-        `${name}=1; Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; HttpOnly; SameSite=Lax; Secure`,
-      );
+      res.setHeader('Set-Cookie', buildCookie(cookieName));
+      console.log(`Finalización contada en ${sessionId}.`);
     }
-
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.status(200).end(thanksPage());
   } catch (error) {
-    console.error('Error al registrar la finalización:', error);
-    // El alumno ya terminó: aunque falle el conteo, la página de agradecimiento
-    // se muestra igual.
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.status(200).end(thanksPage());
+    console.error('Error al contar la finalización:', error);
   }
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.status(200).end(thanksPage());
 };

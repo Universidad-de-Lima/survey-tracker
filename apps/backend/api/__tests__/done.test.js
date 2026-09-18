@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-let dbMock;
+let setMock;
+let refMock;
 
 globalThis.dbStore = {
   current: {
-    ref: (...args) => dbMock.ref(...args),
+    ref: (...args) => refMock(...args),
   },
 };
 
@@ -15,46 +16,11 @@ vi.doMock('../../lib/firebase.js', () => ({
 
 const { default: done } = await import('../done.js');
 
-/** Doble de RTDB con árbol anidado: `set(incrementBy(n))` suma en servidor. */
-function createTreeDb() {
-  const tree = {};
-
-  function getAt(path) {
-    const valor = path
-      .split('/')
-      .reduce((node, key) => (node === undefined || node === null ? null : node[key]), tree);
-
-    return valor === undefined ? null : valor;
-  }
-
-  function setAt(path, value) {
-    const keys = path.split('/');
-    const last = keys.pop();
-    let node = tree;
-
-    for (const key of keys) {
-      if (typeof node[key] !== 'object' || node[key] === null) {
-        node[key] = {};
-      }
-      node = node[key];
-    }
-
-    if (value && typeof value === 'object' && '__increment__' in value) {
-      node[last] = (Number(node[last]) || 0) + value.__increment__;
-      return;
-    }
-
-    node[last] = value;
-  }
-
-  return {
-    tree,
-    ref: (path) => ({
-      once: async () => ({ val: () => getAt(path) }),
-      set: async (value) => setAt(path, value),
-    }),
-  };
-}
+beforeEach(() => {
+  vi.clearAllMocks();
+  setMock = vi.fn().mockResolvedValue();
+  refMock = vi.fn(() => ({ set: setMock }));
+});
 
 function createRes() {
   return {
@@ -80,69 +46,57 @@ function createRes() {
   };
 }
 
-const ABIERTA = 'salon_2026-09-20_11-00';
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  dbMock = createTreeDb();
-});
+const AGRADECIMIENTO = 'encuesta quedó registrada';
 
 describe('GET /api/done', () => {
-  it('counts the completion of the session Zoho sent back', async () => {
+  it('counts the completion in the campaign session when Zoho sends no parameter', async () => {
     const res = createRes();
 
-    await done({ method: 'GET', query: { s: ABIERTA } }, res);
+    await done({ method: 'GET' }, res);
 
+    expect(refMock).toHaveBeenCalledWith('sessions/default/completed');
+    expect(setMock).toHaveBeenCalledWith({ __increment__: 1 });
+    expect(res.headers['Set-Cookie']).toContain('terminado_default=1');
     expect(res.statusCode).toBe(200);
-    expect(dbMock.tree.sessions[ABIERTA].completed).toBe(1);
     expect(res.headers['Content-Type']).toBe('text/html; charset=utf-8');
-    expect(res.headers['Set-Cookie']).toContain(`encuesta_${ABIERTA}=1`);
-    expect(res.body).toContain('encuesta quedó registrada');
+    expect(res.body).toContain(AGRADECIMIENTO);
   });
 
-  it('does not count twice when the student reloads the thanks page', async () => {
-    dbMock.tree.sessions = { [ABIERTA]: { completed: 1 } };
-
-    const res = createRes();
-    await done(
-      {
-        method: 'GET',
-        query: { s: ABIERTA },
-        headers: { cookie: `otra=1; encuesta_${ABIERTA}=1` },
-      },
-      res,
-    );
-
-    expect(res.statusCode).toBe(200);
-    expect(dbMock.tree.sessions[ABIERTA].completed).toBe(1);
-    expect(res.headers['Set-Cookie']).toBeUndefined();
-    expect(res.body).toContain('encuesta quedó registrada');
-  });
-
-  it('does not count when the session parameter is missing', async () => {
+  it('respects the session Zoho sends back in ?s=', async () => {
     const res = createRes();
 
-    await done({ method: 'GET', query: {} }, res);
+    await done({ method: 'GET', query: { s: 'salon-302' } }, res);
 
-    expect(res.statusCode).toBe(200);
-    expect(Object.keys(dbMock.tree)).toHaveLength(0);
-    expect(res.body).toContain('encuesta quedó registrada');
+    expect(refMock).toHaveBeenCalledWith('sessions/salon-302/completed');
+    expect(res.headers['Set-Cookie']).toContain('terminado_salon-302=1');
   });
 
   it('reads the session from the url when req.query is absent', async () => {
     const res = createRes();
 
-    await done({ method: 'GET', url: `/api/done?s=${ABIERTA}` }, res);
+    await done({ method: 'GET', url: '/api/done?s=salon-401' }, res);
 
-    expect(dbMock.tree.sessions[ABIERTA].completed).toBe(1);
+    expect(refMock).toHaveBeenCalledWith('sessions/salon-401/completed');
   });
 
-  it('does not count with a blank session id', async () => {
+  it('does not count twice when the student reloads the thanks page', async () => {
     const res = createRes();
 
-    await done({ method: 'GET', query: { s: '   ' } }, res);
+    await done({ method: 'GET', headers: { cookie: 'otra=1; terminado_default=1' } }, res);
 
-    expect(Object.keys(dbMock.tree)).toHaveLength(0);
+    expect(setMock).not.toHaveBeenCalled();
+    expect(res.headers['Set-Cookie']).toBeUndefined();
+    expect(res.body).toContain(AGRADECIMIENTO);
+  });
+
+  it('still shows the thanks page when counting fails', async () => {
+    setMock.mockRejectedValue(new Error('firebase caído'));
+
+    const res = createRes();
+    await done({ method: 'GET' }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain(AGRADECIMIENTO);
   });
 
   it('rejects methods other than GET', async () => {
