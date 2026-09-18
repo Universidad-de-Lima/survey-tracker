@@ -20,9 +20,11 @@ function createTreeDb() {
   const tree = {};
 
   function getAt(path) {
-    return (
-      path.split('/').reduce((node, key) => (node == null ? null : node[key]), tree) ?? null
-    );
+    const valor = path
+      .split('/')
+      .reduce((node, key) => (node === undefined || node === null ? null : node[key]), tree);
+
+    return valor === undefined ? null : valor;
   }
 
   function setAt(path, value) {
