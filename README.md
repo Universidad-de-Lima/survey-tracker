@@ -97,8 +97,6 @@ respuesta por **IP** o por **dispositivo (cookie)**.
 | **Una respuesta por dispositivo (cookie)** | Va atada al teléfono: el mismo celular no puede responder dos veces |
 | **Una respuesta por IP** | Va atada a la conexión a internet: una respuesta por IP |
 
-Actualmente está **desactivada** (fase de pruebas, con pocos celulares).
-
 **Antes de pasar a producción:**
 1. Activarla en la encuesta real.
 2. Probarla con **dos celulares** y comprobar que el segundo no se queda fuera.
