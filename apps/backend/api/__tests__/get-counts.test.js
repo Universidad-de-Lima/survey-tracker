@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createRes } from '../../test/helpers.js';
+
 let setMock;
 let onceMock;
 let transactionMock;
@@ -36,29 +38,6 @@ beforeEach(() => {
     remove: removeMock,
   }));
 });
-
-function createRes() {
-  return {
-    statusCode: undefined,
-    headers: {},
-    body: undefined,
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    setHeader(key, value) {
-      this.headers[key] = value;
-      return this;
-    },
-    json(data) {
-      this.body = data;
-      return this;
-    },
-    end() {
-      return this;
-    },
-  };
-}
 
 describe('GET /api/get-counts', () => {
   it('returns the counters of the default session', async () => {

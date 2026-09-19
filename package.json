@@ -11,8 +11,7 @@
 
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "clean": "turbo clean && rm -rf node_modules",
-    "prepare": "husky"
+    "clean": "turbo clean && rm -rf node_modules"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
@@ -22,10 +21,6 @@
     "lint-staged": "^15.2.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,jsx}": ["eslint --fix", "prettier --write"],
-    "*.{json,md}": ["prettier --write"]
   },
   "packageManager": "pnpm@9.1.0",
   "engines": {

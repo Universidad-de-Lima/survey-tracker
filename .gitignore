@@ -5,11 +5,11 @@ node_modules/
 # Build outputs
 dist/
 build/
-.next/
 out/
 .cache/
+*.tsbuildinfo
 
-# QR generados en CI a partir de data/salones.csv (no se versionan)
+# QR generado en cada despliegue del panel (no se versiona)
 apps/frontend/public/qr/
 
 # Environment
@@ -38,7 +38,3 @@ logs/
 
 # Turbo
 .turbo/
-
-# Prisma
-apps/backend/src/database/prisma/*.db
-apps/backend/src/database/prisma/*.db-journal

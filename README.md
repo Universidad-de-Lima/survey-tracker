@@ -137,7 +137,6 @@ survey-tracker/
 │   │   │   └── reset-counts.js   # botón RESET
 │   │   ├── lib/
 │   │   │   ├── firebase.js       # Firebase Admin + incremento atómico
-│   │   │   ├── cookies.js        # cookies anti-duplicado
 │   │   │   └── sessions.js       # rutas de la sesión y cálculo de contadores
 │   │   └── vercel.json           # enrutado de los endpoints
 │   └── frontend/                 # Panel React + Vite

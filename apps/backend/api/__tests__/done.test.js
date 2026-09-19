@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createRes } from '../../test/helpers.js';
+
 let setMock;
 let refMock;
 
@@ -21,30 +23,6 @@ beforeEach(() => {
   setMock = vi.fn().mockResolvedValue();
   refMock = vi.fn(() => ({ set: setMock }));
 });
-
-function createRes() {
-  return {
-    statusCode: undefined,
-    headers: {},
-    body: undefined,
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    setHeader(key, value) {
-      this.headers[key] = value;
-      return this;
-    },
-    json(data) {
-      this.body = data;
-      return this;
-    },
-    end(body) {
-      this.body = body;
-      return this;
-    },
-  };
-}
 
 const AGRADECIMIENTO = 'encuesta quedó registrada';
 

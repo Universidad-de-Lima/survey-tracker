@@ -6,12 +6,5 @@
       "@survey-tracker/shared-types": ["packages/shared-types/src"]
     }
   },
-  "references": [
-    { "path": "packages/tsconfig" },
-    { "path": "packages/shared-types" },
-    { "path": "packages/eslint-config" },
-    { "path": "apps/frontend" },
-    { "path": "apps/backend" }
-  ],
   "exclude": ["node_modules", "dist"]
 }

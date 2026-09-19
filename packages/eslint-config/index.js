@@ -51,6 +51,10 @@ module.exports = {
         '@typescript-eslint/no-var-requires': 'off',
       },
     },
+    {
+      files: ['*.tsx', '*.jsx'],
+      extends: ['plugin:react-hooks/recommended'],
+    },
   ],
   settings: {
     'import/resolver': {

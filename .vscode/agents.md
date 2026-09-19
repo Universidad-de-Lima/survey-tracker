@@ -52,14 +52,14 @@ planned: the counter is Firebase RTDB and it stays that way.
 - Plain `.js`, ESM, kebab-case filenames.
 - Endpoints are `export default async (req, res) => { ... }` (Vercel Node signature).
 - Shared logic lives in `lib/` and is imported by relative path; `lib/sessions.js` holds the
-  RTDB paths, `lib/cookies.js` the anti-duplicate cookies.
+  RTDB paths and the counter maths, `lib/firebase.js` the Admin SDK.
 - Comments explain *why*, in Spanish — keep that language for comments and logs.
 - Every endpoint validates method, answers `405` for the rest and `204` for `OPTIONS`.
 
 ### Shared
 - Prettier: `printWidth: 100`, single quotes, semicolons, trailing commas (`all`).
-- ESLint: **`import/order` is enforced — imports must be alphabetical** (`cookies` before
-  `firebase`) and **`eqeqeq` forbids `==`**. Both are common CI failures.
+- ESLint: **`import/order` is enforced — imports must be alphabetical** (`firebase` before
+  `sessions`) and **`eqeqeq` forbids `==`**. Both are common CI failures.
 - Prefer explicit, commented constants over magic numbers.
 
 ## Sensitive points
@@ -104,9 +104,9 @@ On the network drive, run these through GitHub Actions instead (see Sensitive po
 - Firebase is mocked with a module-level `globalThis.dbStore.current` plus
   `vi.doMock('../lib/firebase.js', ...)`, defined **before** the dynamic `await import()` of
   the endpoint; `ref` must delegate to the spy of the current test.
-- What matters in tests: that the student always reaches the survey, that the same phone is
-  not counted twice, that `pending` never comes out `NaN` or negative, and that the reset
-  zeroes both counters.
+- What matters in tests: that the student always reaches the survey, that **no scan is lost**
+  (every scan and every completion counts — there is deliberately no deduplication), that
+  `pending` never comes out `NaN` or negative, and that the reset zeroes both counters.
 
 ## AI Agent Constraints
 
