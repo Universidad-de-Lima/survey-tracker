@@ -107,9 +107,50 @@ las respuestas están en Zoho y el encuestador lo ve al instante.
 
 ---
 
+### `POST /api/procesar-encuesta`
+
+Lo llama el **botón de refrescar del portal** (repositorio `survey-test`): le pide a GitHub que
+ejecute el flujo `build_zoho_survey.yml`, que convierte las respuestas acumuladas de Zoho Survey
+en los datos publicados del portal.
+
+**Input:**
+- Método: `POST` (también acepta `OPTIONS`)
+- Cuerpo: vacío
+
+**Output:** HTTP **202**
+
+```json
+{ "message": "Proceso solicitado. Los datos se actualizarán en unos minutos." }
+```
+
+- HTTP 200 `{ "message": "Ya hay una ejecución en curso o recién terminada. Prueba en unos minutos." }`
+  si la última ejecución del flujo empezó hace menos de 10 minutos.
+- HTTP 405 `{ error: "Método no permitido." }`
+- HTTP 502 `{ error: "GitHub rechazó la solicitud.", status }`
+- HTTP 503 `{ error: "Falta configurar GITHUB_DISPATCH_TOKEN en Vercel." }`
+- HTTP 204 para `OPTIONS`
+
+**Efectos:** dispara un `repository_dispatch` con `event_type: procesar_datos` en `survey-test`.
+No toca Firebase.
+
+**Variable de entorno:** `GITHUB_DISPATCH_TOKEN` (Vercel → Settings → Environment Variables).
+Es un token de GitHub con **Contents: Read and write** sobre `survey-test`. Si además se le da
+**Actions: Read-only**, el endpoint puede aplicar el corte de 10 minutos entre disparos.
+
+**CORS:** a diferencia del resto, aquí **no** se permite cualquier origen: solo
+`https://universidad-de-lima.github.io` y `http://localhost:3000`. La llave vive únicamente en el
+servidor, así que el portal no guarda ni pide nada.
+
+**Decisión de diseño:** la llave no se pega nunca en la página. El corte de 10 minutos no es
+seguridad (la llave no está expuesta), es higiene: evita que dos clics seguidos encolen dos
+ejecuciones.
+
+---
+
 ## CORS
 
 Todos los endpoints habilitan CORS con origen `*`, porque el panel se sirve desde GitHub Pages.
+La excepción es `/api/procesar-encuesta`, que solo acepta el origen del portal (ver arriba).
 
 ## Notas técnicas
 

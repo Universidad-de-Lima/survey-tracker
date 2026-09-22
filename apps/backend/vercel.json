@@ -24,6 +24,10 @@
       "dest": "api/reset-counts.js"
     },
     {
+      "src": "/api/procesar-encuesta",
+      "dest": "api/procesar-encuesta.js"
+    },
+    {
       "src": "/api/health",
       "dest": "api/get-counts.js"
     }
