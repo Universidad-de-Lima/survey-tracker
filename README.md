@@ -9,7 +9,7 @@ cuándo puede pasar al siguiente salón.
 
 - **Panel (es lo que se proyecta en el salón):** https://universidad-de-lima.github.io/survey-tracker/
 - **Backend:** https://encuesta-pregrado.vercel.app
-- **Encuesta (Zoho Survey):** https://survey.zohopublic.com/zs/E7C2sQ
+- **Encuesta (Zoho Survey):** https://survey.zohopublic.com/zs/IWC2X9
 
 ## Cómo funciona
 
@@ -75,7 +75,7 @@ en pantalla — las respuestas están a salvo en Zoho y se ve al instante.
 
 ## Configuración en Zoho
 
-Una sola cosa, **en la encuesta a la que apunta el QR** (`survey.zohopublic.com/zs/E7C2sQ`):
+Una sola cosa, **en la encuesta a la que apunta el QR** (`survey.zohopublic.com/zs/IWC2X9`):
 
 **CONFIGURACIÓN → Página final de la encuesta → «Redirigir a nueva página»**
 
@@ -156,7 +156,7 @@ FIREBASE_SERVICE_ACCOUNT_KEY='{"type":"service_account","project_id":"..."}'
 FIREBASE_DATABASE_URL=https://your-project.firebaseio.com
 
 # Zoho: a dónde se redirige al alumno después de escanear el QR.
-ZOHO_SURVEY_URL=https://survey.zohopublic.com/zs/E7C2sQ
+ZOHO_SURVEY_URL=https://survey.zohopublic.com/zs/IWC2X9
 
 # Environment
 NODE_ENV=production
