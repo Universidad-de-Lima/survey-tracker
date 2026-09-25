@@ -77,6 +77,13 @@ una sesión sin empezar devuelve ceros sin error.
 
 ---
 
+### `GET /api/health`
+
+Es el mismo servicio que `/api/get-counts` con otro nombre: sirve para comprobar de un vistazo
+que el backend está respondiendo. Devuelve exactamente los mismos contadores.
+
+---
+
 ### `POST /api/reset-counts`
 
 El botón `RESET` del panel: pone los contadores a cero para el siguiente salón.

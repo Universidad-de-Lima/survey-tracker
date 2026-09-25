@@ -37,7 +37,7 @@ sessions/default/scanned      escaneos
 sessions/default/completed    encuestas terminadas
 ```
 
-`pending` (= `scanned − completed`) se calcula en el servidor, nunca en el navegador.
+`pending` (= `scanned − completed`) lo calcula el servidor y lo devuelve ya resuelto.
 
 ## Stack tecnológico
 
@@ -87,27 +87,25 @@ Sin parámetros ni cabeceras. Cuando el alumno pulsa ENVIAR, Zoho lo redirige aq
 la finalización y ve un mensaje de agradecimiento. Si esto no está configurado, «Escanearon»
 sube pero «Terminaron» se queda en cero.
 
-### Restricción de respuestas duplicadas — PENDIENTE PARA PRODUCCIÓN
+### Restricciones de Zoho
 
-En **Publicar → Restricciones → Restricciones de respuesta** Zoho permite limitar a una
-respuesta por **IP** o por **dispositivo (cookie)**.
+**No se usa ninguna.** En **Publicar → Restricciones → Restricciones de respuesta**, Zoho
+permite limitar a una respuesta por **IP** o por **dispositivo (cookie)**, y las dos están
+**desactivadas** a propósito.
 
-| Opción | Cómo funciona |
-|---|---|
-| **Una respuesta por dispositivo (cookie)** | Va atada al teléfono: el mismo celular no puede responder dos veces |
-| **Una respuesta por IP** | Va atada a la conexión a internet: una respuesta por IP |
+El motivo es el salón: muchos alumnos comparten la misma conexión (la red del aula o los datos
+del propio celular), así que cualquiera de las dos opciones bloquearía a alumnos que **sí** deben
+responder. Un bloqueo así no muestra ningún mensaje: se nota en el contador, porque
+«Escanearon» sube y «Terminaron» se queda corto.
 
-**La que se usa en este proyecto: una respuesta por IP.**
-
-**Antes de pasar a producción:**
-1. Activarla en la encuesta real.
-2. Probarla con **dos celulares** y comprobar que el segundo no se queda fuera.
+Antes de activar cualquier restricción, comprobar con **varios celulares a la vez** que todos
+pueden responder.
 
 ## Antes de pasar a producción — lista de comprobación
 
 - [ ] Configurar la redirección de la página final en Zoho (`/api/done`).
-- [ ] **Activar** la restricción de respuestas duplicadas, con **una respuesta por IP**.
-- [ ] Verificar con dos celulares que no bloquea al segundo.
+- [ ] Comprobar en Zoho que **no** haya ninguna restricción de respuestas activada.
+- [ ] Probar con **varios celulares a la vez** que todos pueden responder.
 - [ ] Pulsar `RESET` para dejar el contador en cero antes del primer salón.
 - [ ] Proyectar el panel en un salón real y comprobar que el QR se lee desde las últimas filas.
 - [ ] Acordar quién pulsa `RESET` y con qué criterio («Pendientes» = 0).
@@ -122,6 +120,8 @@ Detalle completo en [docs/api/README.md](./docs/api/README.md).
 | GET | `/api/done` | Cuenta la finalización (lo llama Zoho desde la página final) |
 | GET | `/api/get-counts` | Devuelve los contadores actuales |
 | POST | `/api/reset-counts` | Pone los contadores a cero |
+| GET | `/api/health` | Igual que `get-counts`: comprueba de un vistazo que el backend responde |
+| POST | `/api/procesar-encuesta` | Lo llama el portal para pedir la actualización de datos |
 
 ## Estructura del proyecto
 
@@ -131,10 +131,11 @@ survey-tracker/
 ├── apps/
 │   ├── backend/
 │   │   ├── api/
-│   │   │   ├── qr-scan.js        # cuenta el escaneo y redirige
-│   │   │   ├── done.js           # cuenta la finalización + página de gracias
-│   │   │   ├── get-counts.js     # contadores para el panel
-│   │   │   └── reset-counts.js   # botón RESET
+│   │   │   ├── qr-scan.js          # cuenta el escaneo y redirige
+│   │   │   ├── done.js             # cuenta la finalización + página de gracias
+│   │   │   ├── get-counts.js       # contadores para el panel
+│   │   │   ├── reset-counts.js     # botón RESET
+│   │   │   └── procesar-encuesta.js # pide al portal que actualice sus datos
 │   │   ├── lib/
 │   │   │   ├── firebase.js       # Firebase Admin + incremento atómico
 │   │   │   └── sessions.js       # rutas de la sesión y cálculo de contadores
@@ -158,18 +159,28 @@ FIREBASE_DATABASE_URL=https://your-project.firebaseio.com
 # Zoho: a dónde se redirige al alumno después de escanear el QR.
 ZOHO_SURVEY_URL=https://survey.zohopublic.com/zs/IWC2X9
 
+# Llave de GitHub que usa /api/procesar-encuesta para pedir la actualización del portal.
+# Permisos: Contents Read and write sobre `survey-test` (+ Actions Read-only, opcional).
+GITHUB_DISPATCH_TOKEN=ghp_...
+
 # Environment
 NODE_ENV=production
 ```
 
-No hay claves ni secretos adicionales: el reset no pide clave y Zoho se conecta por la
-redirección de la página final, sin cabeceras.
+El contador no tiene ninguna clave: el reset no la pide y Zoho se conecta por la redirección de
+la página final, sin cabeceras. La única llave es la del proceso del portal, y vive solo aquí:
+el navegador nunca la ve.
 
-### Panel (variable de repositorio en GitHub)
+### Panel
 
-```
-VITE_API_BASE_URL=https://encuesta-pregrado.vercel.app/api
-```
+**No hay que definir ninguna variable.** La dirección del backend está escrita en el propio
+código (`apps/frontend/src/shared/validators/env.ts`), y es la que usan tanto el panel como el
+generador del QR.
+
+> **No definas `VITE_API_BASE_URL` en GitHub.** El flujo de despliegue le añade `/api/qr-scan`
+> por su cuenta, así que definirlo genera un QR que apunta a `.../api/api/qr-scan`, que no
+> funciona. Si cambia la dirección del backend se cambia en el código: `env.ts` (panel) y
+> `scripts/generar_qr.py` (QR).
 
 ## Desarrollo
 
@@ -197,12 +208,19 @@ pnpm --filter @survey-tracker/frontend build
 | Servicio | Límite gratuito | Uso real |
 |---|---|---|
 | Vercel Hobby | 1.000.000 invocaciones/mes | ~30.000/mes (**3 %**) |
-| Firebase RTDB Spark | 100 conexiones simultáneas · 1 GB almacenado · 10 GB descargado/mes | ~0,15 % |
+| Firebase RTDB Spark | 1 GB almacenado · 10 GB descargado/mes | ~0,15 % |
 | GitHub Pages | 1 GB almacenamiento · 100 GB tráfico/mes | despreciable |
 
-Medición con 30 peticiones simultáneas contra `/api/get-counts`: **30/30 correctas**, sin
-errores. El único techo real es el de **100 conexiones simultáneas** de Firebase Spark, que
-sólo se alcanzaría con un pico muy superior al previsto.
+Medición con **un salón entero a la vez** (60 escaneos y 60 finalizaciones simultáneas, con el
+panel consultando en paralelo): **120/120 correctas**, sin errores, con la mitad resueltas en
+menos de un segundo.
+
+El contador consulta Firebase por su vía REST, así que **no gasta las 100 conexiones
+simultáneas** de Spark: ese límite es para las aplicaciones que se conectan y se quedan
+escuchando. El recurso que sí conviene vigilar es el **tiempo de procesamiento**, y quien lo
+consume no son los alumnos sino el panel, que consulta cada 5 segundos mientras está abierto.
+Cerrarlo entre salones (o subirlo a 10 segundos) deja una campaña en una fracción pequeña del
+límite gratuito.
 
 ## Licencia
 

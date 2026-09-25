@@ -27,8 +27,9 @@ presses `RESET` (`/api/reset-counts`) before moving to the next classroom.
 survey-tracker/
 ├── apps/
 │   ├── backend/
-│   │   ├── api/                 # endpoints: qr-scan, done, get-counts, reset-counts
-│   │   ├── lib/                 # firebase.js, cookies.js, sessions.js
+│   │   ├── api/                 # endpoints: qr-scan, done, get-counts, reset-counts,
+│   │   │                        #            procesar-encuesta
+│   │   ├── lib/                 # firebase.js, sessions.js
 │   │   └── vercel.json          # explicit route table (see Sensitive Points #1)
 │   └── frontend/
 │       └── src/
@@ -74,7 +75,9 @@ planned: the counter is Firebase RTDB and it stays that way.
 3. **The counter path is shared**: `sessions/default/{scanned,completed}`, read by
    `get-counts` and written by `qr-scan`, `done` and `reset-counts`. Changing it means
    changing every endpoint plus `lib/sessions.js`.
-4. **No secrets anywhere.** `POST /api/reset-counts` is intentionally unprotected (an
+4. **The only secret is `GITHUB_DISPATCH_TOKEN`**, which `POST /api/procesar-encuesta` uses to
+   ask GitHub for a portal rebuild; it lives only in Vercel and the browser never sees it. The
+   counter itself needs no secret: `POST /api/reset-counts` is intentionally unprotected (an
    accidental tap is handled by the UI confirmation) and completions arrive through Zoho's
    end-page redirect, so there is no webhook and no shared secret to configure.
 5. **The QR must point to `/api/qr-scan`, never straight to Zoho.** Otherwise nothing is
