@@ -4,7 +4,7 @@ const envSchema = z.object({
   VITE_API_BASE_URL: z
     .string()
     .url('VITE_API_BASE_URL must be a valid URL')
-    .default('https://qr-smoky-theta.vercel.app/api'),
+    .default('https://encuesta-pregrado.vercel.app/api'),
 });
 
 function parseEnv() {

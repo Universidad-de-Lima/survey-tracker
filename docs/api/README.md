@@ -2,7 +2,7 @@
 
 Backend serverless desplegado en Vercel.
 
-**Base URL:** `https://qr-smoky-theta.vercel.app/api`
+**Base URL:** `https://encuesta-pregrado.vercel.app/api`
 
 ---
 

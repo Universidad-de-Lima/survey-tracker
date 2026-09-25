@@ -9,7 +9,7 @@ la encuesta de Zoho. Es el mismo QR toda la campaña: se proyecta, los alumnos l
 escanean y el panel muestra el avance hasta que "Pendientes" llega a cero.
 
 Uso:
-    python scripts/generar_qr.py --url https://qr-smoky-theta.vercel.app/api/qr-scan
+    python scripts/generar_qr.py --url https://encuesta-pregrado.vercel.app/api/qr-scan
 """
 
 import argparse
@@ -17,7 +17,7 @@ import os
 import sys
 from urllib.parse import urlparse
 
-URL_POR_DEFECTO = "https://qr-smoky-theta.vercel.app/api/qr-scan"
+URL_POR_DEFECTO = "https://encuesta-pregrado.vercel.app/api/qr-scan"
 SALIDA_POR_DEFECTO = "apps/frontend/public/qr"
 NOMBRE_POR_DEFECTO = "encuesta.png"
 

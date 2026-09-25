@@ -8,7 +8,7 @@ cuándo puede pasar al siguiente salón.
 ## URLs del proyecto
 
 - **Panel (es lo que se proyecta en el salón):** https://universidad-de-lima.github.io/survey-tracker/
-- **Backend:** https://qr-smoky-theta.vercel.app
+- **Backend:** https://encuesta-pregrado.vercel.app
 - **Encuesta (Zoho Survey):** https://survey.zohopublic.com/zs/E7C2sQ
 
 ## Cómo funciona
@@ -50,7 +50,7 @@ sessions/default/completed    encuestas terminadas
 
 ## El QR
 
-- Es **uno solo y fijo**: `https://qr-smoky-theta.vercel.app/api/qr-scan`.
+- Es **uno solo y fijo**: `https://encuesta-pregrado.vercel.app/api/qr-scan`.
 - **Apunta al contador, no directamente a Zoho.** Ese salto es lo que permite contar el
   escaneo: sin él no se cuenta nada.
 - Lo genera `scripts/generar_qr.py` en cada despliegue del frontend y queda publicado en
@@ -80,7 +80,7 @@ Una sola cosa, **en la encuesta a la que apunta el QR** (`survey.zohopublic.com/
 **CONFIGURACIÓN → Página final de la encuesta → «Redirigir a nueva página»**
 
 ```
-https://qr-smoky-theta.vercel.app/api/done
+https://encuesta-pregrado.vercel.app/api/done
 ```
 
 Sin parámetros ni cabeceras. Cuando el alumno pulsa ENVIAR, Zoho lo redirige aquí, se cuenta
@@ -168,7 +168,7 @@ redirección de la página final, sin cabeceras.
 ### Panel (variable de repositorio en GitHub)
 
 ```
-VITE_API_BASE_URL=https://qr-smoky-theta.vercel.app/api
+VITE_API_BASE_URL=https://encuesta-pregrado.vercel.app/api
 ```
 
 ## Desarrollo
