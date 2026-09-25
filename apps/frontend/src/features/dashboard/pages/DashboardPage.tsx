@@ -8,8 +8,6 @@ export function DashboardPage() {
 
   return (
     <>
-      <DashboardPanel counts={counts ?? null} isLoading={isLoading} />
-
       {isError && (
         <div
           className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative w-full max-w-lg"
@@ -23,6 +21,8 @@ export function DashboardPage() {
       )}
 
       <QRCodeSection />
+
+      <DashboardPanel counts={counts ?? null} isLoading={isLoading} />
 
       <div className="w-full max-w-lg mt-4">
         <ResetButton />
