@@ -19,7 +19,8 @@ vi.doMock('../../lib/firebase.js', () => ({
   incrementBy: (amount) => ({ __increment__: amount }),
 }));
 
-const { default: preguntas, normalizar, limpiarDatosPersonales, claveDe } = await import('../preguntas.js');
+const { default: preguntas, normalizar, limpiarDatosPersonales, claveDe, textoEstaMal } =
+  await import('../preguntas.js');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -68,6 +69,43 @@ describe('registro de preguntas del portal', () => {
     expect(limpio).not.toContain('987654321');
     expect(limpio).toContain('[correo]');
     expect(limpio).toContain('[numero]');
+  });
+
+  it('quita el carácter de reemplazo de un texto que llegó roto', async () => {
+    expect(limpiarDatosPersonales('\uFFFCu\uFFFl es el NPS?')).toBe('Cul es el NPS?');
+  });
+
+  it('reemplaza el texto guardado si quedó todo en mayúsculas', () => {
+    expect(textoEstaMal('CUAL ES EL NPS DE 2026 1', 'cuál es el nps de 2026-1')).toBe(true);
+    expect(textoEstaMal('cuál es el nps de 2026-1', 'CUAL ES EL NPS')).toBe(false);
+    expect(textoEstaMal('\uFFFCu\uFFFl es el NPS?', 'cuál es el nps')).toBe(true);
+  });
+
+  it('en el POST cambia el texto guardado cuando el viejo quedó en mayúsculas', async () => {
+    onceMock.mockResolvedValue({ exists: () => true, val: () => ({ texto: 'CUAL ES EL NPS DE 2026 1' }) });
+    const res = createRes();
+
+    await preguntas({ method: 'POST', body: { pregunta: 'cuál es el nps de 2026-1' } }, res);
+
+    expect(updateMock.mock.calls[0][0].texto).toBe('cuál es el nps de 2026-1');
+  });
+
+  it('el mantenimiento borra solo las entradas de prueba', async () => {
+    onceMock.mockResolvedValue({
+      val: () => ({
+        a: { texto: 'pregunta real de alguien', intencion: 'NPS' },
+        b: { texto: 'CUAL ES EL NPS DE 2026 1', intencion: 'prueba' },
+      }),
+    });
+    const removeMock = vi.fn().mockResolvedValue();
+    refMock.mockImplementation(() => ({ update: updateMock, once: onceMock, remove: removeMock }));
+    const res = createRes();
+
+    await preguntas({ method: 'POST', body: { limpiar: 'prueba' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.borradas).toBe(1);
+    expect(refMock).toHaveBeenCalledWith('preguntas/' + claveDe(normalizar('CUAL ES EL NPS DE 2026 1')));
   });
 
   it('no guarda una pregunta vacía o sin sentido', async () => {

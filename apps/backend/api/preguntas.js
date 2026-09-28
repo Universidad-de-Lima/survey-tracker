@@ -44,6 +44,7 @@ export function normalizar(texto) {
  */
 export function limpiarDatosPersonales(texto) {
   return String(texto ?? '')
+    .replace(/\uFFFD/g, '')            // caracter de reemplazo: el texto llegó roto
     .replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[correo]')
     .replace(/\+?\d[\d\s().-]{5,}\d/g, '[numero]')
     .replace(/\d{6,}/g, '[numero]')
@@ -54,6 +55,28 @@ export function limpiarDatosPersonales(texto) {
 /** Clave segura para Firebase (sin `.`, `#`, `$`, `[`, `]`, `/`). */
 export function claveDe(normalizada) {
   return Buffer.from(normalizada, 'utf8').toString('base64url').slice(0, 120);
+}
+
+/**
+ * El texto guardado se reemplaza solo si quedo peor que el nuevo: si trae caracteres
+ * rotos o si esta todo en mayusculas y el nuevo no. Asi la lista se ve ordenada.
+ */
+export function textoEstaMal(previo, nuevo) {
+  const viejo = String(previo ?? '');
+  const flamante = String(nuevo ?? '');
+  if (!flamante) return false;
+  if (/\uFFFD/.test(viejo)) return true;
+  const enMayusculas = (x) => x === x.toUpperCase() && x !== x.toLowerCase();
+  return enMayusculas(viejo) && !enMayusculas(flamante);
+}
+
+/** Mantenimiento: borra las entradas de prueba (las que se registraron con intencion "prueba"). */
+async function limpiarDePrueba() {
+  const snapshot = await db.ref(REF).once('value');
+  const datos = snapshot.val() ?? {};
+  const borradas = Object.keys(datos).filter((clave) => datos[clave] && datos[clave].intencion === 'prueba');
+  await Promise.all(borradas.map((clave) => db.ref(`${REF}/${clave}`).remove()));
+  return borradas.length;
 }
 
 async function guardar(pregunta, intencion) {
@@ -69,14 +92,14 @@ async function guardar(pregunta, intencion) {
   // Se guarda la PRIMERA redacción que llegó: si luego alguien pregunta lo mismo
   // en mayúsculas o sin signos, suma en `veces` pero no pisa el texto ya guardado.
   const previo = await nodo.once('value');
-  const yaExiste = previo.exists() && previo.val() && previo.val().texto;
+  const textoPrevio = previo.exists() && previo.val() && previo.val().texto;
 
   const cambios = {
     veces: incrementBy(1),
     ultima: Date.now(),
     intencion: String(intencion ?? '').slice(0, 40),
   };
-  if (!yaExiste) {
+  if (!textoPrevio || textoEstaMal(textoPrevio, limpia)) {
     cambios.texto = limpia;
   }
 
@@ -110,6 +133,11 @@ export default async (req, res) => {
 
     if (req.method === 'POST') {
       const cuerpo = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body ?? {});
+
+      if (cuerpo.limpiar === 'prueba') {
+        res.status(200).json({ ok: true, borradas: await limpiarDePrueba() });
+        return;
+      }
       const clave = await guardar(cuerpo.pregunta, cuerpo.intencion);
 
       if (!clave) {
