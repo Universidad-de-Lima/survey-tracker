@@ -28,6 +28,10 @@
       "dest": "api/procesar-encuesta.js"
     },
     {
+      "src": "/api/preguntas",
+      "dest": "api/preguntas.js"
+    },
+    {
       "src": "/api/health",
       "dest": "api/get-counts.js"
     }
