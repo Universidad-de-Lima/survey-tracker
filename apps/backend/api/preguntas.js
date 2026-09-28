@@ -64,12 +64,23 @@ async function guardar(pregunta, intencion) {
   }
 
   const clave = claveDe(normalizada);
-  await db.ref(`${REF}/${clave}`).update({
-    texto: limpia,
+  const nodo = db.ref(`${REF}/${clave}`);
+
+  // Se guarda la PRIMERA redacción que llegó: si luego alguien pregunta lo mismo
+  // en mayúsculas o sin signos, suma en `veces` pero no pisa el texto ya guardado.
+  const previo = await nodo.once('value');
+  const yaExiste = previo.exists() && previo.val() && previo.val().texto;
+
+  const cambios = {
     veces: incrementBy(1),
     ultima: Date.now(),
     intencion: String(intencion ?? '').slice(0, 40),
-  });
+  };
+  if (!yaExiste) {
+    cambios.texto = limpia;
+  }
+
+  await nodo.update(cambios);
   return clave;
 }
 

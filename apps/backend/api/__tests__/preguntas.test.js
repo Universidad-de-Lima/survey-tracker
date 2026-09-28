@@ -24,7 +24,7 @@ const { default: preguntas, normalizar, limpiarDatosPersonales, claveDe } = awai
 beforeEach(() => {
   vi.clearAllMocks();
   updateMock = vi.fn().mockResolvedValue();
-  onceMock = vi.fn().mockResolvedValue({ val: () => ({}) });
+  onceMock = vi.fn().mockResolvedValue({ exists: () => false, val: () => null });
   refMock = vi.fn(() => ({ update: updateMock, once: onceMock }));
 });
 
@@ -39,6 +39,17 @@ describe('registro de preguntas del portal', () => {
       expect.objectContaining({ veces: { __increment__: 1 }, intencion: 'NPS' })
     );
     expect(refMock.mock.calls[0][0]).toMatch(/^preguntas\//);
+  });
+
+  it('no pisa el texto ya guardado cuando llega otra redacción parecida', async () => {
+    onceMock.mockResolvedValue({ exists: () => true, val: () => ({ texto: '¿Cuál es el NPS de 2026-1?' }) });
+    const res = createRes();
+
+    await preguntas({ method: 'POST', body: { pregunta: 'CUAL ES EL NPS DE 2026 1' } }, res);
+
+    const cambios = updateMock.mock.calls[0][0];
+    expect(cambios.texto).toBeUndefined();
+    expect(cambios.veces).toEqual({ __increment__: 1 });
   });
 
   it('las preguntas parecidas caen en la misma clave y suman juntas', async () => {
