@@ -105,7 +105,8 @@ describe('registro de preguntas del portal', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.borradas).toBe(1);
-    expect(refMock).toHaveBeenCalledWith('preguntas/' + claveDe(normalizar('CUAL ES EL NPS DE 2026 1')));
+    // Borra por la clave guardada en Firebase, no por una recalculada.
+    expect(refMock).toHaveBeenCalledWith('preguntas/b');
   });
 
   it('no guarda una pregunta vacía o sin sentido', async () => {
