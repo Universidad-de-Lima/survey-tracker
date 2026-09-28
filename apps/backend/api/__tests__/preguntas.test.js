@@ -72,13 +72,13 @@ describe('registro de preguntas del portal', () => {
   });
 
   it('quita el carácter de reemplazo de un texto que llegó roto', async () => {
-    expect(limpiarDatosPersonales('\uFFFCu\uFFFl es el NPS?')).toBe('Cul es el NPS?');
+    expect(limpiarDatosPersonales('\uFFFDCu\uFFFDl es el NPS?')).toBe('Cul es el NPS?');
   });
 
   it('reemplaza el texto guardado si quedó todo en mayúsculas', () => {
     expect(textoEstaMal('CUAL ES EL NPS DE 2026 1', 'cuál es el nps de 2026-1')).toBe(true);
     expect(textoEstaMal('cuál es el nps de 2026-1', 'CUAL ES EL NPS')).toBe(false);
-    expect(textoEstaMal('\uFFFCu\uFFFl es el NPS?', 'cuál es el nps')).toBe(true);
+    expect(textoEstaMal('\uFFFDCu\uFFFDl es el NPS?', 'cuál es el nps')).toBe(true);
   });
 
   it('en el POST cambia el texto guardado cuando el viejo quedó en mayúsculas', async () => {
