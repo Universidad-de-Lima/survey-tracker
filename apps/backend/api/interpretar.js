@@ -1,14 +1,15 @@
 // ============================================================
 // Interpretación de preguntas del portal (item 1.9)
 // ------------------------------------------------------------
-// POST { pregunta } → devuelve SOLO la consulta:
-//     { dato, periodo, entidad, orden }
+// POST { pregunta, contexto, menu } → devuelve SOLO el formulario lleno:
+//     { se_puede, operacion, periodo, filtros, pregunta_objetivo,
+//       valores_objetivo, entidad, orden, motivo }
 //
-// Esta función NO responde preguntas ni calcula nada: traduce la frase a una consulta
-// ordenada. El portal toma esa consulta y responde con el motor de datos, que lee los
-// JSON publicados. Así la IA nunca puede inventar una cifra: no escribe números.
+// Esta función NO responde preguntas ni calcula nada: elige nombres del menú
+// (las preguntas y opciones publicadas) y el portal valida contra los JSON y
+// responde. Así la IA nunca puede inventar una cifra: no escribe números.
 //
-// Usa la misma llave de NVIDIA que el proceso del ETL (variable NVIDIA_API_KEY en Vercel).
+// Usa la misma llave de NVIDIA que el proceso del ETL (NVIDIA_API_KEY en Vercel).
 // ============================================================
 
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
@@ -20,32 +21,40 @@ const MODELOS = [
   'poolside/laguna-xs-2.1',
 ];
 
-const DATOS = [
-  'nps', 'satisfaccion', 'respuestas', 'carreras', 'facultades', 'ciclos',
+const OPERACIONES = [
+  'contar', 'porcentaje', 'cruce', 'nps', 'satisfaccion', 'carreras', 'facultades', 'ciclos',
   'dimensiones', 'comentarios', 'temas', 'comparacion', 'fechas', 'periodos', 'ninguna',
 ];
 
-const INSTRUCCIONES = `Traduces preguntas al español sobre encuestas de satisfacción a una consulta ordenada.
-Respondes SOLO un objeto JSON, sin texto alrededor, con esta forma exacta:
-{"dato":"...","periodo":"...","entidad":"...","orden":"..."}
+const MAX_PREGUNTA = 300;
+const MAX_CONTEXTO = 6000;
+const MAX_MENU = 16000;
+const MAX_TOKENS = 500;
 
-"dato" es uno de: ${DATOS.join(' | ')}.
-"periodo" es el período o año que se menciona (por ejemplo "2026-1", "2025-2", "2026"); si no se menciona ninguno, "".
-"entidad" es el nombre propio que aparezca en la pregunta (carrera, facultad, ciclo o dimensión), copiado tal cual; si no hay, "".
-"orden" es "mejor" o "peor" cuando la pregunta pide los más altos o los más bajos; si no, "".
+const INSTRUCCIONES = `Eres el asistente de datos del portal de encuestas de la Universidad de Lima.
+Recibes el contexto del proyecto, el menú del período (cada pregunta con sus opciones) y una pregunta.
+Respondes SOLO un objeto JSON, sin texto alrededor, con esta forma exacta:
+{"se_puede":true,"operacion":"...","periodo":"...","filtros":[{"pregunta":"...","valores":["..."]}],"pregunta_objetivo":"...","valores_objetivo":["..."],"entidad":"...","orden":"...","motivo":""}
+
+- "se_puede" es false cuando la pregunta no se puede responder con los datos del menú (la hora, el clima, otro tema). En ese caso "motivo" lo explica en una frase corta.
+- "operacion" es una de: ${OPERACIONES.join(' | ')}.
+  - contar o porcentaje: cuántas respuestas cumplen los filtros (cuántos alumnos de tal carrera).
+  - cruce: filtrar por una o más condiciones y contar una pregunta objetivo con sus valores (cuántos de tal grupo están satisfechos).
+  - nps, satisfaccion, carreras, facultades, ciclos, dimensiones, comentarios, temas, comparacion, fechas, periodos: como se usan hoy.
+- "periodo": el nombre del período del menú al que te refieres, copiado tal cual; "" si no aplica.
+- "filtros": lista de condiciones; cada una es una pregunta del menú con uno o más valores EXACTOS de esa pregunta.
+- "pregunta_objetivo": la pregunta del menú que se quiere contar ("" si no se cuenta ninguna).
+- "valores_objetivo": los valores EXACTOS que se quieren contar de la pregunta objetivo.
+- "entidad": el nombre propio (carrera, facultad, ciclo o dimensión) cuando la operación lo usa; "" si no.
+- "orden": "mejor" o "peor" cuando se piden los más altos o los más bajos; "" si no.
 
 Reglas:
-- Si la pregunta no trata sobre estas encuestas (la hora, el clima, noticias, política, personas), "dato" es "ninguna".
-- Nunca inventes períodos ni nombres que no estén en la pregunta.
-- No respondes la pregunta, solo la traduces.`;
+- Copia los nombres EXACTOS del menú; nunca inventes preguntas, valores ni períodos que no estén ahí.
+- No escribes cifras ni respondes la pregunta: solo llenas el formulario.
+- Si el menú no alcanza para responder, "se_puede" es false.`;
 
-function limpiarPeriodo(valor) {
-  const texto = String(valor ?? '').trim().slice(0, 20);
-  return /^(20\d\d)(-\d)?$/.test(texto) ? texto : '';
-}
-
-function limpiarEntidad(valor) {
-  return String(valor ?? '').trim().slice(0, 80);
+function limpiarTexto(valor, max) {
+  return String(valor ?? '').trim().slice(0, max);
 }
 
 function limpiarOrden(valor) {
@@ -74,20 +83,44 @@ export function primerObjeto(texto) {
   return null;
 }
 
-/** Deja la respuesta del modelo en la consulta que espera el portal. */
+/** Deja la respuesta del modelo en el formulario que espera el portal. */
 export function normalizarConsulta(crudo) {
   if (!crudo || typeof crudo !== 'object') return null;
-  const dato = String(crudo.dato ?? '').trim().toLowerCase();
-  if (DATOS.indexOf(dato) === -1) return null;
+  const operacion = String(crudo.operacion ?? '').trim().toLowerCase();
+  if (OPERACIONES.indexOf(operacion) === -1) return null;
+  const filtros = (Array.isArray(crudo.filtros) ? crudo.filtros : [])
+    .slice(0, 4)
+    .map((f) => ({
+      pregunta: limpiarTexto(f?.pregunta, 80),
+      valores: (Array.isArray(f?.valores) ? f.valores : []).slice(0, 12).map((v) => limpiarTexto(v, 80)).filter(Boolean),
+    }))
+    .filter((f) => f.pregunta && f.valores.length);
   return {
-    dato,
-    periodo: limpiarPeriodo(crudo.periodo),
-    entidad: limpiarEntidad(crudo.entidad),
+    se_puede: crudo.se_puede !== false,
+    operacion,
+    periodo: limpiarTexto(crudo.periodo, 40),
+    filtros,
+    pregunta_objetivo: limpiarTexto(crudo.pregunta_objetivo, 80),
+    valores_objetivo: (Array.isArray(crudo.valores_objetivo) ? crudo.valores_objetivo : [])
+      .slice(0, 12)
+      .map((v) => limpiarTexto(v, 80))
+      .filter(Boolean),
+    entidad: limpiarTexto(crudo.entidad, 80),
     orden: limpiarOrden(crudo.orden),
+    motivo: limpiarTexto(crudo.motivo, 200),
   };
 }
 
-async function preguntarAlModelo(modelo, pregunta, llave) {
+/** El mensaje del usuario: contexto + menú + la pregunta, en ese orden. */
+export function armarMensaje(pregunta, contexto, menu) {
+  return [
+    limpiarTexto(contexto, MAX_CONTEXTO),
+    limpiarTexto(menu, MAX_MENU),
+    '## Pregunta\n' + pregunta,
+  ].filter(Boolean).join('\n\n');
+}
+
+async function preguntarAlModelo(modelo, pregunta, contexto, menu, llave) {
   const respuesta = await fetch(NVIDIA_URL, {
     method: 'POST',
     headers: {
@@ -98,10 +131,10 @@ async function preguntarAlModelo(modelo, pregunta, llave) {
       model: modelo,
       messages: [
         { role: 'system', content: INSTRUCCIONES },
-        { role: 'user', content: pregunta },
+        { role: 'user', content: armarMensaje(pregunta, contexto, menu) },
       ],
       temperature: 0,
-      max_tokens: 120,
+      max_tokens: MAX_TOKENS,
     }),
   });
 
@@ -118,7 +151,7 @@ async function preguntarAlModelo(modelo, pregunta, llave) {
   return consulta;
 }
 
-async function interpretar(pregunta) {
+async function interpretar(pregunta, contexto, menu) {
   const llave = process.env.NVIDIA_API_KEY;
   if (!llave) {
     throw new Error('Falta la llave NVIDIA_API_KEY en el servidor.');
@@ -127,7 +160,7 @@ async function interpretar(pregunta) {
   let ultimoError = null;
   for (const modelo of MODELOS) {
     try {
-      return await preguntarAlModelo(modelo, pregunta, llave);
+      return await preguntarAlModelo(modelo, pregunta, contexto, menu, llave);
     } catch (error) {
       console.error('Interpretación fallida:', error.message);
       ultimoError = error;
@@ -152,7 +185,7 @@ export default async (req, res) => {
   }
 
   const cuerpo = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body ?? {});
-  const pregunta = String(cuerpo.pregunta ?? '').trim().slice(0, 300);
+  const pregunta = String(cuerpo.pregunta ?? '').trim().slice(0, MAX_PREGUNTA);
 
   if (pregunta.length < 3) {
     res.status(400).json({ error: 'Falta la pregunta.' });
@@ -160,7 +193,8 @@ export default async (req, res) => {
   }
 
   try {
-    res.status(200).json({ consulta: await interpretar(pregunta) });
+    const consulta = await interpretar(pregunta, cuerpo.contexto, cuerpo.menu);
+    res.status(200).json({ consulta });
   } catch (error) {
     console.error('Error al interpretar la pregunta del portal:', error);
     res.status(502).json({ error: 'No se pudo interpretar la pregunta.' });
