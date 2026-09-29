@@ -54,6 +54,9 @@ Respondes SOLO un objeto JSON, sin texto alrededor, con esta forma exacta:
 
 Reglas:
 - Copia los nombres EXACTOS del menú; nunca inventes preguntas, valores ni períodos que no estén ahí.
+- Cuando la pregunta pida cuantos/cuantas o un porcentaje de un grupo (los de tal carrera,
+  los que trabajan...), separa: el GRUPO va en "filtros" y lo que se cuenta va en
+  "pregunta_objetivo" con sus "valores_objetivo". Nunca pongas como filtro lo que se cuenta.
 - No escribes cifras ni respondes la pregunta: solo llenas el formulario.
 - Si el menú no alcanza para responder, "se_puede" es false.`;
 
