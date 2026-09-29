@@ -109,6 +109,24 @@ describe('registro de preguntas del portal', () => {
     expect(refMock).toHaveBeenCalledWith('preguntas/b');
   });
 
+  it('el mantenimiento de borrar todo deja el registro en blanco', async () => {
+    onceMock.mockResolvedValue({
+      val: () => ({
+        a: { texto: 'pregunta real de alguien', intencion: 'NPS' },
+        b: { texto: 'otra pregunta', intencion: 'Cruce' },
+      }),
+    });
+    const removeMock = vi.fn().mockResolvedValue();
+    refMock.mockImplementation(() => ({ update: updateMock, once: onceMock, remove: removeMock }));
+    const res = createRes();
+
+    await preguntas({ method: 'POST', body: { limpiar: 'todo' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.borradas).toBe(2);
+    expect(removeMock).toHaveBeenCalled();
+  });
+
   it('no guarda una pregunta vacía o sin sentido', async () => {
     const res = createRes();
 

@@ -79,6 +79,15 @@ async function limpiarDePrueba() {
   return borradas.length;
 }
 
+/** Mantenimiento: borra TODAS las entradas (deja el registro en blanco). */
+async function limpiarTodo() {
+  const snapshot = await db.ref(REF).once('value');
+  const datos = snapshot.val() ?? {};
+  const cuantas = Object.keys(datos).length;
+  await db.ref(REF).remove();
+  return cuantas;
+}
+
 async function guardar(pregunta, intencion) {
   const limpia = limpiarDatosPersonales(pregunta);
   const normalizada = normalizar(limpia);
@@ -136,6 +145,11 @@ export default async (req, res) => {
 
       if (cuerpo.limpiar === 'prueba') {
         res.status(200).json({ ok: true, borradas: await limpiarDePrueba() });
+        return;
+      }
+
+      if (cuerpo.limpiar === 'todo') {
+        res.status(200).json({ ok: true, borradas: await limpiarTodo() });
         return;
       }
       const clave = await guardar(cuerpo.pregunta, cuerpo.intencion);
