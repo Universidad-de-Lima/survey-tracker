@@ -31,6 +31,10 @@ const MAX_CONTEXTO = 6000;
 const MAX_MENU = 16000;
 const MAX_TOKENS = 500;
 
+// Si un modelo se queda colgado, no se le espera para siempre: se pasa al siguiente.
+// (Es configurable para poder probar el corte sin esperar de verdad.)
+const TIMEOUT_MS = Number(process.env.INTERPRETAR_TIMEOUT_MS) || 90000;
+
 const INSTRUCCIONES = `Eres el asistente de datos del portal de encuestas de la Universidad de Lima.
 Recibes el contexto del proyecto, el menú del período (cada pregunta con sus opciones) y una pregunta.
 Respondes SOLO un objeto JSON, sin texto alrededor, con esta forma exacta:
@@ -121,22 +125,30 @@ export function armarMensaje(pregunta, contexto, menu) {
 }
 
 async function preguntarAlModelo(modelo, pregunta, contexto, menu, llave) {
-  const respuesta = await fetch(NVIDIA_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${llave}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: modelo,
-      messages: [
-        { role: 'system', content: INSTRUCCIONES },
-        { role: 'user', content: armarMensaje(pregunta, contexto, menu) },
-      ],
-      temperature: 0,
-      max_tokens: MAX_TOKENS,
-    }),
-  });
+  const control = new AbortController();
+  const reloj = setTimeout(() => control.abort(), TIMEOUT_MS);
+  let respuesta;
+  try {
+    respuesta = await fetch(NVIDIA_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${llave}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: modelo,
+        messages: [
+          { role: 'system', content: INSTRUCCIONES },
+          { role: 'user', content: armarMensaje(pregunta, contexto, menu) },
+        ],
+        temperature: 0,
+        max_tokens: MAX_TOKENS,
+      }),
+      signal: control.signal,
+    });
+  } finally {
+    clearTimeout(reloj);
+  }
 
   if (!respuesta.ok) {
     throw new Error(`${modelo}: ${respuesta.status}`);

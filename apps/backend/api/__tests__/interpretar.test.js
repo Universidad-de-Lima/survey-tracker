@@ -127,6 +127,30 @@ describe('formulario de la pregunta (contexto + menú)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('si un modelo se queda colgado, se corta y prueba el siguiente', async () => {
+    process.env.INTERPRETAR_TIMEOUT_MS = '30';
+    let primera = true;
+    fetchMock.mockImplementation(() => {
+      if (primera) {
+        primera = false;
+        return new Promise((ok, mal) => {
+          const t = setTimeout(() => mal(Object.assign(new Error('abortado'), { name: 'AbortError' })), 20);
+          void t; void ok;
+        });
+      }
+      return modelo('{"se_puede":true,"operacion":"nps","periodo":"2026-1"}');
+    });
+    const res = createRes();
+
+    await interpretar({ method: 'POST', body: { pregunta: '¿Cuál es el NPS?' } }, res);
+    delete process.env.INTERPRETAR_TIMEOUT_MS;
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.consulta.operacion).toBe('nps');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1].signal).toBeTruthy();
+  });
+
   it('si ningún modelo responde, avisa sin romper', async () => {
     fetchMock.mockReturnValue(modelo('no es json', { status: 200 }));
     const res = createRes();
