@@ -37,7 +37,7 @@ const OPERACIONES = [
 
 const MAX_PREGUNTA = 300;
 const MAX_CONTEXTO = 6000;
-const MAX_MENU = 16000;
+const MAX_MENU = 40000;
 const MAX_TOKENS = 500;
 
 // Si un modelo se queda colgado, no se le espera para siempre: se pasa al siguiente.
@@ -52,7 +52,7 @@ function tiempoLimite(proveedor) {
 }
 
 const INSTRUCCIONES = `Eres el asistente de datos del portal de encuestas de la Universidad de Lima.
-Recibes el contexto del proyecto, el menú del período (cada pregunta con sus opciones) y una pregunta.
+Recibes el contexto del proyecto (que puede traer una "Conversación reciente"), el menú de TODOS los períodos publicados (cada pregunta con sus opciones) y una pregunta.
 Respondes SOLO un objeto JSON, sin texto alrededor, con esta forma exacta:
 {"se_puede":true,"operacion":"...","periodo":"...","filtros":[{"pregunta":"...","valores":["..."]}],"pregunta_objetivo":"...","valores_objetivo":["..."],"entidad":"...","orden":"...","motivo":""}
 
@@ -76,6 +76,8 @@ Reglas:
 - Cada valor (en "filtros" y en "valores_objetivo") es una cadena copiada LITERALMENTE de las
   opciones de esa pregunta en el menú. Nunca pongas como valor el nombre o la explicación de una
   equivalencia: una equivalencia solo sirve para elegir las opciones del menú.
+- Si la pregunta es un seguimiento ("y del 2025?", "y en Economía?", "y eso?"), complétala con la
+  última pregunta y la respuesta que se dio en "Conversación reciente" antes de llenar el formulario.
 - No escribes cifras ni respondes la pregunta: solo llenas el formulario.
 - Si el menú no alcanza para responder, "se_puede" es false.`;
 
