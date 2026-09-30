@@ -36,6 +36,10 @@
       "dest": "api/interpretar.js"
     },
     {
+      "src": "/api/cuota",
+      "dest": "api/cuota.js"
+    },
+    {
       "src": "/api/health",
       "dest": "api/get-counts.js"
     }

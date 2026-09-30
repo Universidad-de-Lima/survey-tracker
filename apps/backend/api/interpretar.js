@@ -19,6 +19,8 @@
 // Los de NVIDIA conservan los 90 s.
 // ============================================================
 
+import { contarPregunta, podarMinutosViejos } from '../lib/cuota.js';
+
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const GOOGLE_URL = (modelo) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
 
@@ -188,6 +190,9 @@ export async function llamarAlModelo(modelo, pregunta, contexto, menu, llave) {
   let respuesta;
   try {
     if (modelo.proveedor === 'google') {
+      // Solo estas preguntas gastan el cupo de Google: se cuentan antes de llamarlo.
+      await contarPregunta();
+      if (new Date().getMinutes() % 30 === 0) void podarMinutosViejos();
       respuesta = await fetch(`${GOOGLE_URL(modelo.id)}?key=${encodeURIComponent(llave)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
