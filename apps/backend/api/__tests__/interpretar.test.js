@@ -8,7 +8,7 @@ globalThis.fetch = (...args) => fetchMock(...args);
 
 
 const {
-  default: interpretar, primerObjeto, normalizarConsulta, armarMensaje,
+  default: interpretar, primerObjeto, normalizarConsulta, normalizarPlan, limpiarRespuesta, armarMensaje,
   textoDeRespuesta, MODELOS,
 } = await import('../interpretar.js');
 
@@ -90,6 +90,49 @@ describe('formulario de la pregunta (contexto + menú)', () => {
     });
     expect(normalizarConsulta({ operacion: 'inventada' })).toBeNull();
     expect(normalizarConsulta(null)).toBeNull();
+  });
+
+  it('el paso "plan" devuelve qué datos leer (períodos, preguntas y filtros)', async () => {
+    fetchMock.mockReturnValue(modeloGoogle('{"se_puede":true,"periodos":["Estudiantes Pregrado 2026-1"],"preguntas":["Carrera"],"filtros":[{"pregunta":"Ciclo","valores":["10° Ciclo"]}],"motivo":""}'));
+    const res = createRes();
+
+    await interpretar({ method: 'POST', body: { pregunta: '¿Qué carreras hay en 10° ciclo?', paso: 'plan' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.plan.preguntas).toEqual(['Carrera']);
+    expect(res.body.plan.filtros[0].pregunta).toBe('Ciclo');
+    const enviado = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(enviado.systemInstruction.parts[0].text).toContain('QUÉ DATOS HAY QUE LEER');
+  });
+
+  it('el paso "respuesta" redacta con los datos que le manda el portal', async () => {
+    fetchMock.mockReturnValue(modeloGoogle('```\n# En 2025-2 hubo 3998 respuestas.\nFuente: Estudiantes Pregrado 2025-2\n```'));
+    const res = createRes();
+
+    await interpretar({
+      method: 'POST',
+      body: { pregunta: '¿Cuántos respondieron?', paso: 'respuesta', bloques: '## Datos — Estudiantes Pregrado 2025-2\n- Respuestas: 3998' },
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.respuesta).toContain('3998');
+    expect(res.body.respuesta).toContain('Fuente:');
+    expect(res.body.respuesta).not.toContain('```');
+    const enviado = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(enviado.contents[0].parts[0].text).toContain('## Datos');
+    expect(enviado.systemInstruction.parts[0].text).toContain('SOLO esos datos');
+  });
+
+  it('el plan recorta listas disparatadas (períodos, preguntas y filtros)', () => {
+    const p = normalizarPlan({
+      periodos: ['a', '', 'b', 'c', 'd'],
+      preguntas: ['x'],
+      filtros: [{ pregunta: '', valores: ['y'] }, { pregunta: 'Carrera', valores: [] }],
+    });
+
+    expect(p.periodos).toEqual(['a', 'b', 'c']);
+    expect(p.preguntas).toEqual(['x']);
+    expect(p.filtros).toEqual([]);
   });
 
   it('no deja pasar órdenes que no correspondan ni filtros vacíos', () => {

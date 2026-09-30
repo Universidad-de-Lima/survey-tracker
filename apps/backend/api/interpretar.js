@@ -38,7 +38,9 @@ const OPERACIONES = [
 const MAX_PREGUNTA = 300;
 const MAX_CONTEXTO = 6000;
 const MAX_MENU = 40000;
+const MAX_BLOQUES = 20000;
 const MAX_TOKENS = 500;
+const MAX_TOKENS_RESPUESTA = 400;
 
 // Si un modelo se queda colgado, no se le espera para siempre: se pasa al siguiente.
 // (Configurables para poder probar el corte sin esperar de verdad.)
@@ -81,6 +83,46 @@ Reglas:
   última pregunta y la respuesta que se dio en "Conversación reciente" antes de llenar el formulario.
 - No escribes cifras ni respondes la pregunta: solo llenas el formulario.
 - Si el menú no alcanza para responder, "se_puede" es false.`;
+
+/**
+ * Paso 1 — el PLAN. El modelo ya no elige una operación de un catálogo: dice qué datos hay que
+ * leer (qué períodos, qué preguntas y qué filtros). El portal busca esos bloques en los JSON
+ * publicados y se los devuelve en el paso 2.
+ */
+const INSTRUCCIONES_PLAN = `Eres el asistente de datos del portal de encuestas de la Universidad de Lima.
+Recibes el contexto del proyecto (con la conversación reciente si la hay), el menú de TODOS los períodos publicados (cada pregunta con sus opciones) y una pregunta.
+Dices QUÉ DATOS HAY QUE LEER para responderla. Respondes SOLO un objeto JSON, sin texto alrededor:
+{"se_puede":true,"periodos":["..."],"preguntas":["..."],"filtros":[{"pregunta":"...","valores":["..."]}],"motivo":""}
+
+- "periodos": los períodos del menú que hacen falta, copiados tal cual (uno o varios).
+- "preguntas": las preguntas del menú cuyos datos hay que leer (por ejemplo "Carrera", "La carrera",
+  "Situación laboral", "Tiempo laboral"). Es lo que se quiere saber, no lo que se filtra.
+- "filtros": las condiciones que acotan la respuesta (una carrera, un ciclo, una situación laboral),
+  cada una con una pregunta del menú y valores EXACTOS copiados de sus opciones.
+- Si la pregunta es un seguimiento ("y del 2025?", "y de Psicología?"), complétala con la
+  conversación reciente antes de decidir qué leer.
+- "se_puede" es false cuando la respuesta no está en los datos (la hora, el clima, otra universidad,
+  una opinión o un pronóstico) y "motivo" lo explica en una frase corta.
+- Copia los nombres EXACTOS del menú; nunca inventes períodos, preguntas ni valores. No escribas cifras.`;
+
+/**
+ * Paso 2 — la REDACCIÓN. Recibe la pregunta y los datos que el portal encontró, y escribe la
+ * respuesta con ellos; cada cifra que escriba tiene que estar en los datos (el portal lo comprueba).
+ */
+const INSTRUCCIONES_RESPUESTA = `Eres el asistente de datos del portal de encuestas de la Universidad de Lima.
+Recibes una pregunta y los DATOS PUBLICADOS que le corresponden (los buscó el portal).
+Respondes en español, claro y breve (una a cuatro frases), usando SOLO esos datos.
+- Cada cifra que escribas tiene que aparecer tal cual en los datos; no calcules ni supongas.
+- Si los datos no alcanzan, dilo en una frase corta ("con los datos publicados no puedo responder eso") en vez de inventar.
+- No repitas la pregunta ni expliques el proceso, y no armes tablas.
+- En la última línea, aparte, escribe de dónde sale: "Fuente: " y el período o la encuesta que figuren en los datos.`;
+
+/** La instrucción que corresponde a cada paso. */
+function instruccionesDe(paso) {
+  if (paso === 'plan') return INSTRUCCIONES_PLAN;
+  if (paso === 'respuesta') return INSTRUCCIONES_RESPUESTA;
+  return INSTRUCCIONES;
+}
 
 function limpiarTexto(valor, max) {
   return String(valor ?? '').trim().slice(0, max);
@@ -140,11 +182,41 @@ export function normalizarConsulta(crudo) {
   };
 }
 
-/** El mensaje del usuario: contexto + menú + la pregunta, en ese orden. */
-export function armarMensaje(pregunta, contexto, menu) {
+/** El plan de lectura (paso 1): qué períodos, qué preguntas y qué filtros hacen falta. */
+export function normalizarPlan(crudo) {
+  if (!crudo || typeof crudo !== 'object') return null;
+  return {
+    se_puede: crudo.se_puede !== false,
+    periodos: (Array.isArray(crudo.periodos) ? crudo.periodos : [])
+      .slice(0, 3).map((p) => limpiarTexto(p, 60)).filter(Boolean),
+    preguntas: (Array.isArray(crudo.preguntas) ? crudo.preguntas : [])
+      .slice(0, 6).map((p) => limpiarTexto(p, 80)).filter(Boolean),
+    filtros: (Array.isArray(crudo.filtros) ? crudo.filtros : [])
+      .slice(0, 4)
+      .map((f) => ({
+        pregunta: limpiarTexto(f?.pregunta, 80),
+        valores: (Array.isArray(f?.valores) ? f.valores : []).slice(0, 12).map((v) => limpiarTexto(v, 80)).filter(Boolean),
+      }))
+      .filter((f) => f.pregunta && f.valores.length),
+    motivo: limpiarTexto(crudo.motivo, 200),
+  };
+}
+
+/** La respuesta redactada (paso 2): texto plano, sin bloques de código y con un tope de largo. */
+export function limpiarRespuesta(texto) {
+  return String(texto ?? '')
+    .replace(/```+/g, '')
+    .replace(/^\s*#+\s*/gm, '')
+    .trim()
+    .slice(0, 1200);
+}
+
+/** El mensaje del usuario: contexto + menú + (datos, en el paso de redacción) + la pregunta. */
+export function armarMensaje(pregunta, contexto, menu, bloques) {
   return [
     limpiarTexto(contexto, MAX_CONTEXTO),
     limpiarTexto(menu, MAX_MENU),
+    limpiarTexto(bloques, MAX_BLOQUES),
     '## Pregunta\n' + pregunta,
   ].filter(Boolean).join('\n\n');
 }
@@ -154,24 +226,27 @@ export function armarMensaje(pregunta, contexto, menu) {
  * Aquí SÍ se manda "temperature": 0 (a diferencia del análisis cualitativo del ETL, que la
  * omite): esta tarea consiste en extraer nombres exactos de una lista, no en redactar.
  */
-export function cuerpoGoogle(pregunta, contexto, menu) {
+export function cuerpoGoogle(pregunta, contexto, menu, paso = 'formulario', bloques = '') {
   return {
-    systemInstruction: { parts: [{ text: INSTRUCCIONES }] },
-    contents: [{ role: 'user', parts: [{ text: armarMensaje(pregunta, contexto, menu) }] }],
-    generationConfig: { temperature: 0, maxOutputTokens: MAX_TOKENS },
+    systemInstruction: { parts: [{ text: instruccionesDe(paso) }] },
+    contents: [{ role: 'user', parts: [{ text: armarMensaje(pregunta, contexto, menu, bloques) }] }],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: paso === 'respuesta' ? MAX_TOKENS_RESPUESTA : MAX_TOKENS,
+    },
   };
 }
 
 /** Cuerpo de la petición para NVIDIA (formato OpenAI). */
-export function cuerpoNvidia(modelo, pregunta, contexto, menu) {
+export function cuerpoNvidia(modelo, pregunta, contexto, menu, paso = 'formulario', bloques = '') {
   return {
     model: modelo,
     messages: [
-      { role: 'system', content: INSTRUCCIONES },
-      { role: 'user', content: armarMensaje(pregunta, contexto, menu) },
+      { role: 'system', content: instruccionesDe(paso) },
+      { role: 'user', content: armarMensaje(pregunta, contexto, menu, bloques) },
     ],
     temperature: 0,
-    max_tokens: MAX_TOKENS,
+    max_tokens: paso === 'respuesta' ? MAX_TOKENS_RESPUESTA : MAX_TOKENS,
   };
 }
 
@@ -184,7 +259,7 @@ export function textoDeRespuesta(proveedor, datos) {
   return datos?.choices?.[0]?.message?.content ?? '';
 }
 
-export async function llamarAlModelo(modelo, pregunta, contexto, menu, llave) {
+export async function llamarAlModelo(modelo, pregunta, contexto, menu, llave, paso = 'formulario', bloques = '') {
   const control = new AbortController();
   const reloj = setTimeout(() => control.abort(), tiempoLimite(modelo.proveedor));
   const etiqueta = `${modelo.proveedor}:${modelo.id}`;
@@ -194,17 +269,17 @@ export async function llamarAlModelo(modelo, pregunta, contexto, menu, llave) {
       respuesta = await fetch(`${GOOGLE_URL(modelo.id)}?key=${encodeURIComponent(llave)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(cuerpoGoogle(pregunta, contexto, menu)),
+        body: JSON.stringify(cuerpoGoogle(pregunta, contexto, menu, paso, bloques)),
         signal: control.signal,
       });
     } else {
       respuesta = await fetch(NVIDIA_URL, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${llave}`,
+          Authorization: 'Bearer ' + llave,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(cuerpoNvidia(modelo.id, pregunta, contexto, menu)),
+        body: JSON.stringify(cuerpoNvidia(modelo.id, pregunta, contexto, menu, paso, bloques)),
         signal: control.signal,
       });
     }
@@ -217,14 +292,21 @@ export async function llamarAlModelo(modelo, pregunta, contexto, menu, llave) {
   }
 
   const datos = await respuesta.json();
-  const consulta = normalizarConsulta(primerObjeto(textoDeRespuesta(modelo.proveedor, datos)));
-  if (!consulta) {
+  const texto = textoDeRespuesta(modelo.proveedor, datos);
+  // El paso de redacción devuelve texto; los otros dos, un objeto JSON.
+  if (paso === 'respuesta') {
+    const escrito = limpiarRespuesta(texto);
+    if (!escrito) throw new Error(`${etiqueta}: respuesta vacía`);
+    return { respuesta: escrito };
+  }
+  const salida = paso === 'plan' ? normalizarPlan(primerObjeto(texto)) : normalizarConsulta(primerObjeto(texto));
+  if (!salida) {
     throw new Error(`${etiqueta}: respuesta no interpretable`);
   }
-  return consulta;
+  return salida;
 }
 
-async function interpretar(pregunta, contexto, menu) {
+async function interpretar(pregunta, contexto, menu, paso = 'formulario', bloques = '') {
   let ultimoError = null;
   for (const modelo of MODELOS) {
     const llave = modelo.proveedor === 'google' ? process.env.GOOGLE_API_KEY : process.env.NVIDIA_API_KEY;
@@ -233,7 +315,7 @@ async function interpretar(pregunta, contexto, menu) {
       continue;
     }
     try {
-      return await llamarAlModelo(modelo, pregunta, contexto, menu, llave);
+      return await llamarAlModelo(modelo, pregunta, contexto, menu, llave, paso, bloques);
     } catch (error) {
       console.error('Interpretación fallida:', error.message);
       ultimoError = error;
@@ -259,6 +341,8 @@ export default async (req, res) => {
 
   const cuerpo = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body ?? {});
   const pregunta = String(cuerpo.pregunta ?? '').trim().slice(0, MAX_PREGUNTA);
+  const pasos = ['plan', 'respuesta', 'formulario'];
+  const paso = pasos.includes(cuerpo.paso) ? cuerpo.paso : 'formulario';
 
   if (pregunta.length < 3) {
     res.status(400).json({ error: 'Falta la pregunta.' });
@@ -266,8 +350,10 @@ export default async (req, res) => {
   }
 
   try {
-    const consulta = await interpretar(pregunta, cuerpo.contexto, cuerpo.menu);
-    res.status(200).json({ consulta });
+    const salida = await interpretar(pregunta, cuerpo.contexto, cuerpo.menu, paso, cuerpo.bloques);
+    if (paso === 'respuesta') res.status(200).json({ respuesta: salida.respuesta });
+    else if (paso === 'plan') res.status(200).json({ plan: salida });
+    else res.status(200).json({ consulta: salida });
   } catch (error) {
     console.error('Error al interpretar la pregunta del portal:', error);
     res.status(502).json({ error: 'No se pudo interpretar la pregunta.' });
