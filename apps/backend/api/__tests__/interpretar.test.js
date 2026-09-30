@@ -173,7 +173,7 @@ describe('formulario de la pregunta (contexto + menú)', () => {
   it('si el primer modelo falla, prueba el siguiente', async () => {
     fetchMock
       .mockReturnValueOnce(Promise.resolve({ ok: false, status: 503, json: async () => ({}) }))
-      .mockReturnValueOnce(modeloGoogle('{"se_puede":true,"operacion":"nps","periodo":"2026-1"}'));
+      .mockReturnValueOnce(modelo('{"se_puede":true,"operacion":"nps","periodo":"2026-1"}'));
     const res = createRes();
 
     await interpretar({ method: 'POST', body: { pregunta: '¿Cuál es el NPS?' } }, res);
@@ -194,7 +194,7 @@ describe('formulario de la pregunta (contexto + menú)', () => {
           void t; void ok;
         });
       }
-      return modeloGoogle('{"se_puede":true,"operacion":"nps","periodo":"2026-1"}');
+      return modelo('{"se_puede":true,"operacion":"nps","periodo":"2026-1"}');
     });
     const res = createRes();
 
