@@ -163,10 +163,6 @@ ZOHO_SURVEY_URL=https://survey.zohopublic.com/zs/IWC2X9
 GOOGLE_API_KEY=...
 NVIDIA_API_KEY=...
 
-# Opcionales: límites del plan gratuito de Google que muestra /api/cuota (por defecto 15 y 500).
-INTERPRETAR_RPM_LIMITE=15
-INTERPRETAR_RPD_LIMITE=500
-
 # Llave de GitHub que usa /api/procesar-encuesta para pedir la actualización del portal.
 # Permisos: Contents Read and write sobre `survey-test` (+ Actions Read-only, opcional).
 GITHUB_DISPATCH_TOKEN=ghp_...

@@ -6,13 +6,6 @@ let fetchMock;
 
 globalThis.fetch = (...args) => fetchMock(...args);
 
-// El contador de cupo no debe tocar Firebase en las pruebas: se simula el módulo.
-vi.mock('../../lib/cuota.js', () => ({
-  contarPregunta: vi.fn(async () => {}),
-  podarMinutosViejos: vi.fn(async () => {}),
-}));
-
-const { contarPregunta } = await import('../../lib/cuota.js');
 
 const {
   default: interpretar, primerObjeto, normalizarConsulta, armarMensaje,
@@ -54,7 +47,6 @@ beforeEach(() => {
   globalThis.fetch = fetchMock;
   process.env.GOOGLE_API_KEY = 'llave-google-de-prueba';
   process.env.NVIDIA_API_KEY = 'llave-nvidia-de-prueba';
-  contarPregunta.mockClear();
 });
 
 describe('formulario de la pregunta (contexto + menú)', () => {
@@ -155,27 +147,6 @@ describe('formulario de la pregunta (contexto + menú)', () => {
     expect(enviado.messages[0].content).toContain('asistente de datos');
     expect(enviado.messages[1].content).toContain('## Menú');
     expect(enviado.max_tokens).toBeGreaterThanOrEqual(400);
-  });
-
-  it('cuenta la pregunta cuando la manda a Google (es la que gasta cupo)', async () => {
-    fetchMock.mockReturnValue(modeloGoogle(FORMULARIO));
-    const res = createRes();
-
-    await interpretar({ method: 'POST', body: { pregunta: '¿Cuántos trabajan?' } }, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(contarPregunta).toHaveBeenCalledTimes(1);
-  });
-
-  it('no cuenta nada si la pregunta se la lleva NVIDIA (no gasta cupo de Google)', async () => {
-    delete process.env.GOOGLE_API_KEY;
-    fetchMock.mockReturnValue(modelo(FORMULARIO));
-    const res = createRes();
-
-    await interpretar({ method: 'POST', body: { pregunta: '¿Cuántos trabajan?' } }, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(contarPregunta).not.toHaveBeenCalled();
   });
 
   it('si falta la llave de Google, arranca directo con NVIDIA', async () => {
