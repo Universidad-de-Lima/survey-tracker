@@ -31,7 +31,7 @@ export const MODELOS = [
 ];
 
 const OPERACIONES = [
-  'contar', 'porcentaje', 'cruce', 'nps', 'satisfaccion', 'carreras', 'facultades', 'ciclos',
+  'contar', 'porcentaje', 'cruce', 'listar', 'nps', 'satisfaccion', 'carreras', 'facultades', 'ciclos',
   'dimensiones', 'comentarios', 'temas', 'comparacion', 'fechas', 'periodos', 'ninguna',
 ];
 
@@ -60,6 +60,7 @@ Respondes SOLO un objeto JSON, sin texto alrededor, con esta forma exacta:
 - "operacion" es una de: ${OPERACIONES.join(' | ')}.
   - contar o porcentaje: cuántas respuestas cumplen los filtros (cuántos alumnos de tal carrera).
   - cruce: filtrar por una o más condiciones y contar una pregunta objetivo con sus valores (cuántos de tal grupo están satisfechos).
+  - listar: cuando piden QUÉ valores hay de una pregunta ("qué carreras se encuestaron en 2025", "qué ciclos respondieron"): se pone esa pregunta en "pregunta_objetivo" y "valores_objetivo" con los valores pedidos (o vacío, que significa todos). No es un conteo del total.
   - nps, satisfaccion, carreras, facultades, ciclos, dimensiones, comentarios, temas, comparacion, fechas, periodos: como se usan hoy.
 - "periodo": el nombre del período del menú al que te refieres, copiado tal cual; "" si no aplica.
 - "filtros": lista de condiciones; cada una es una pregunta del menú con uno o más valores EXACTOS de esa pregunta.
