@@ -159,6 +159,10 @@ FIREBASE_DATABASE_URL=https://your-project.firebaseio.com
 # Zoho: a dónde se redirige al alumno después de escanear el QR.
 ZOHO_SURVEY_URL=https://survey.zohopublic.com/zs/IWC2X9
 
+# IA del asistente del portal (/api/interpretar): primero Google, NVIDIA de respaldo.
+GOOGLE_API_KEY=...
+NVIDIA_API_KEY=...
+
 # Llave de GitHub que usa /api/procesar-encuesta para pedir la actualización del portal.
 # Permisos: Contents Read and write sobre `survey-test` (+ Actions Read-only, opcional).
 GITHUB_DISPATCH_TOKEN=ghp_...

@@ -8,9 +8,10 @@ globalThis.fetch = (...args) => fetchMock(...args);
 
 const {
   default: interpretar, primerObjeto, normalizarConsulta, armarMensaje,
+  textoDeRespuesta, MODELOS,
 } = await import('../interpretar.js');
 
-/** Respuesta del modelo con un contenido dado. */
+/** Respuesta estilo NVIDIA (formato OpenAI). */
 function modelo(contenido, { status = 200 } = {}) {
   return Promise.resolve({
     ok: status >= 200 && status < 300,
@@ -19,10 +20,32 @@ function modelo(contenido, { status = 200 } = {}) {
   });
 }
 
+/** Respuesta estilo Google (generateContent). */
+function modeloGoogle(contenido, { status = 200 } = {}) {
+  return Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => ({ candidates: [{ content: { parts: [{ text: contenido }] } }] }),
+  });
+}
+
+const FORMULARIO = JSON.stringify({
+  se_puede: true,
+  operacion: 'porcentaje',
+  periodo: 'Graduados Pregrado 2026',
+  filtros: [{ pregunta: 'Carrera', valores: ['Economía'] }],
+  pregunta_objetivo: 'Situación laboral',
+  valores_objetivo: ['Trabajador dependiente'],
+  entidad: '',
+  orden: '',
+  motivo: '',
+});
+
 beforeEach(() => {
   fetchMock = vi.fn();
   globalThis.fetch = fetchMock;
-  process.env.NVIDIA_API_KEY = 'llave-de-prueba';
+  process.env.GOOGLE_API_KEY = 'llave-google-de-prueba';
+  process.env.NVIDIA_API_KEY = 'llave-nvidia-de-prueba';
 });
 
 describe('formulario de la pregunta (contexto + menú)', () => {
@@ -75,18 +98,14 @@ describe('formulario de la pregunta (contexto + menú)', () => {
     expect(f.filtros).toEqual([]);
   });
 
-  it('devuelve el formulario cuando el modelo responde bien, con contexto y menú en el envío', async () => {
-    fetchMock.mockReturnValue(modelo(JSON.stringify({
-      se_puede: true,
-      operacion: 'porcentaje',
-      periodo: 'Graduados Pregrado 2026',
-      filtros: [{ pregunta: 'Carrera', valores: ['Economía'] }],
-      pregunta_objetivo: 'Situación laboral',
-      valores_objetivo: ['Trabajador dependiente'],
-      entidad: '',
-      orden: '',
-      motivo: '',
-    })));
+  it('lee la respuesta de cada proveedor como corresponde', () => {
+    expect(textoDeRespuesta('google', { candidates: [{ content: { parts: [{ text: 'a' }, { text: 'b' }] } }] })).toBe('ab');
+    expect(textoDeRespuesta('nvidia', { choices: [{ message: { content: 'hola' } }] })).toBe('hola');
+    expect(textoDeRespuesta('google', null)).toBe('');
+  });
+
+  it('arranca con el modelo de Google, con la dirección y la forma que Google pide', async () => {
+    fetchMock.mockReturnValue(modeloGoogle(FORMULARIO));
     const res = createRes();
 
     await interpretar({
@@ -95,16 +114,53 @@ describe('formulario de la pregunta (contexto + menú)', () => {
     }, res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body.consulta.operacion).toBe('porcentaje');
-    expect(res.body.consulta.filtros).toEqual([{ pregunta: 'Carrera', valores: ['Economía'] }]);
-    const enviado = JSON.parse(fetchMock.mock.calls[0][1].body);
-    expect(enviado.max_tokens).toBeGreaterThanOrEqual(400);
-    expect(enviado.messages[1].content).toContain('## Qué es');
+    expect(res.body.consulta.pregunta_objetivo).toBe('Situación laboral');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, opciones] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('generativelanguage.googleapis.com');
+    expect(String(url)).toContain(MODELOS[0].id);
+    const enviado = JSON.parse(opciones.body);
+    expect(enviado.systemInstruction.parts[0].text).toContain('asistente de datos');
+    expect(enviado.contents[0].parts[0].text).toContain('## Qué es');
+    expect(enviado.contents[0].parts[0].text).toContain('## Menú');
+    expect(enviado.generationConfig.maxOutputTokens).toBeGreaterThanOrEqual(400);
+    expect(enviado.messages).toBeUndefined();
+  });
+
+  it('si Google no contesta, sigue con NVIDIA (petición estilo OpenAI)', async () => {
+    fetchMock
+      .mockReturnValueOnce(Promise.resolve({ ok: false, status: 503, json: async () => ({}) }))
+      .mockReturnValueOnce(modelo(FORMULARIO));
+    const res = createRes();
+
+    await interpretar({
+      method: 'POST',
+      body: { pregunta: '¿Cuántos trabajan?', contexto: '## Qué es', menu: '## Menú — X' },
+    }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [url, opciones] = fetchMock.mock.calls[1];
+    expect(String(url)).toContain('integrate.api.nvidia.com');
+    const enviado = JSON.parse(opciones.body);
+    expect(enviado.messages[0].content).toContain('asistente de datos');
     expect(enviado.messages[1].content).toContain('## Menú');
+    expect(enviado.max_tokens).toBeGreaterThanOrEqual(400);
+  });
+
+  it('si falta la llave de Google, arranca directo con NVIDIA', async () => {
+    delete process.env.GOOGLE_API_KEY;
+    fetchMock.mockReturnValue(modelo(FORMULARIO));
+    const res = createRes();
+
+    await interpretar({ method: 'POST', body: { pregunta: '¿Cuántos trabajan?' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('integrate.api.nvidia.com');
   });
 
   it('marca "se_puede" false cuando la pregunta no es de las encuestas', async () => {
-    fetchMock.mockReturnValue(modelo('{"se_puede":false,"operacion":"ninguna","motivo":"No es de las encuestas."}'));
+    fetchMock.mockReturnValue(modeloGoogle('{"se_puede":false,"operacion":"ninguna","motivo":"No es de las encuestas."}'));
     const res = createRes();
 
     await interpretar({ method: 'POST', body: { pregunta: '¿Qué hora es?' } }, res);
@@ -117,7 +173,7 @@ describe('formulario de la pregunta (contexto + menú)', () => {
   it('si el primer modelo falla, prueba el siguiente', async () => {
     fetchMock
       .mockReturnValueOnce(Promise.resolve({ ok: false, status: 503, json: async () => ({}) }))
-      .mockReturnValueOnce(modelo('{"se_puede":true,"operacion":"nps","periodo":"2026-1"}'));
+      .mockReturnValueOnce(modeloGoogle('{"se_puede":true,"operacion":"nps","periodo":"2026-1"}'));
     const res = createRes();
 
     await interpretar({ method: 'POST', body: { pregunta: '¿Cuál es el NPS?' } }, res);
@@ -138,7 +194,7 @@ describe('formulario de la pregunta (contexto + menú)', () => {
           void t; void ok;
         });
       }
-      return modelo('{"se_puede":true,"operacion":"nps","periodo":"2026-1"}');
+      return modeloGoogle('{"se_puede":true,"operacion":"nps","periodo":"2026-1"}');
     });
     const res = createRes();
 
@@ -161,7 +217,8 @@ describe('formulario de la pregunta (contexto + menú)', () => {
     expect(res.body.error).toBeTruthy();
   });
 
-  it('sin llave configurada avisa en vez de intentar', async () => {
+  it('sin ninguna llave avisa en vez de intentar', async () => {
+    delete process.env.GOOGLE_API_KEY;
     delete process.env.NVIDIA_API_KEY;
     const res = createRes();
 

@@ -9,16 +9,25 @@
 // (las preguntas y opciones publicadas) y el portal valida contra los JSON y
 // responde. Así la IA nunca puede inventar una cifra: no escribe números.
 //
-// Usa la misma llave de NVIDIA que el proceso del ETL (NVIDIA_API_KEY en Vercel).
+// Cadena de modelos (se prueba en orden hasta que uno conteste bien):
+//   1. Google  gemini-3.5-flash-lite  → llave GOOGLE_API_KEY (medido: 1-2 s, 3 de 3 correctas;
+//                                       cupo del plan gratuito: 15/min y 500/día por proyecto)
+//   2. NVIDIA  nemotron-3.5-lightning → llave NVIDIA_API_KEY (la misma que usa el ETL)
+//   3. NVIDIA  glm-5.3-flash
+//   4. NVIDIA  laguna-xs-2.1
+// El primer intento (Google) corta a los 20 s: no tiene sentido esperar 90 s al modelo rápido.
+// Los de NVIDIA conservan los 90 s.
 // ============================================================
 
 const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const GOOGLE_URL = (modelo) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
 
 // Cadena de modelos: si uno falla o no responde bien, se prueba el siguiente.
-const MODELOS = [
-  'nvidia/nemotron-3.5-lightning-30b-a3b',
-  'z-ai/glm-5.3-flash',
-  'poolside/laguna-xs-2.1',
+export const MODELOS = [
+  { proveedor: 'google', id: 'gemini-3.5-flash-lite' },
+  { proveedor: 'nvidia', id: 'nvidia/nemotron-3.5-lightning-30b-a3b' },
+  { proveedor: 'nvidia', id: 'z-ai/glm-5.3-flash' },
+  { proveedor: 'nvidia', id: 'poolside/laguna-xs-2.1' },
 ];
 
 const OPERACIONES = [
@@ -32,8 +41,15 @@ const MAX_MENU = 16000;
 const MAX_TOKENS = 500;
 
 // Si un modelo se queda colgado, no se le espera para siempre: se pasa al siguiente.
-// (Es configurable para poder probar el corte sin esperar de verdad.)
-const TIMEOUT_MS = Number(process.env.INTERPRETAR_TIMEOUT_MS) || 90000;
+// (Configurables para poder probar el corte sin esperar de verdad.)
+function tiempoLimite(proveedor) {
+  const bruto = proveedor === 'google'
+    ? (process.env.INTERPRETAR_TIMEOUT_GOOGLE_MS ?? process.env.INTERPRETAR_TIMEOUT_MS)
+    : process.env.INTERPRETAR_TIMEOUT_MS;
+  const valor = Number(bruto);
+  if (Number.isFinite(valor) && valor > 0) return valor;
+  return proveedor === 'google' ? 20000 : 90000;
+}
 
 const INSTRUCCIONES = `Eres el asistente de datos del portal de encuestas de la Universidad de Lima.
 Recibes el contexto del proyecto, el menú del período (cada pregunta con sus opciones) y una pregunta.
@@ -127,55 +143,91 @@ export function armarMensaje(pregunta, contexto, menu) {
   ].filter(Boolean).join('\n\n');
 }
 
-async function preguntarAlModelo(modelo, pregunta, contexto, menu, llave) {
+/**
+ * Cuerpo de la petición para Google (generateContent).
+ * Aquí SÍ se manda "temperature": 0 (a diferencia del análisis cualitativo del ETL, que la
+ * omite): esta tarea consiste en extraer nombres exactos de una lista, no en redactar.
+ */
+export function cuerpoGoogle(pregunta, contexto, menu) {
+  return {
+    systemInstruction: { parts: [{ text: INSTRUCCIONES }] },
+    contents: [{ role: 'user', parts: [{ text: armarMensaje(pregunta, contexto, menu) }] }],
+    generationConfig: { temperature: 0, maxOutputTokens: MAX_TOKENS },
+  };
+}
+
+/** Cuerpo de la petición para NVIDIA (formato OpenAI). */
+export function cuerpoNvidia(modelo, pregunta, contexto, menu) {
+  return {
+    model: modelo,
+    messages: [
+      { role: 'system', content: INSTRUCCIONES },
+      { role: 'user', content: armarMensaje(pregunta, contexto, menu) },
+    ],
+    temperature: 0,
+    max_tokens: MAX_TOKENS,
+  };
+}
+
+/** Texto del modelo, según el proveedor (cada uno devuelve la respuesta a su manera). */
+export function textoDeRespuesta(proveedor, datos) {
+  if (proveedor === 'google') {
+    const partes = datos?.candidates?.[0]?.content?.parts ?? [];
+    return partes.map((p) => p?.text ?? '').join('');
+  }
+  return datos?.choices?.[0]?.message?.content ?? '';
+}
+
+export async function llamarAlModelo(modelo, pregunta, contexto, menu, llave) {
   const control = new AbortController();
-  const reloj = setTimeout(() => control.abort(), TIMEOUT_MS);
+  const reloj = setTimeout(() => control.abort(), tiempoLimite(modelo.proveedor));
+  const etiqueta = `${modelo.proveedor}:${modelo.id}`;
   let respuesta;
   try {
-    respuesta = await fetch(NVIDIA_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${llave}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: modelo,
-        messages: [
-          { role: 'system', content: INSTRUCCIONES },
-          { role: 'user', content: armarMensaje(pregunta, contexto, menu) },
-        ],
-        temperature: 0,
-        max_tokens: MAX_TOKENS,
-      }),
-      signal: control.signal,
-    });
+    if (modelo.proveedor === 'google') {
+      respuesta = await fetch(`${GOOGLE_URL(modelo.id)}?key=${encodeURIComponent(llave)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cuerpoGoogle(pregunta, contexto, menu)),
+        signal: control.signal,
+      });
+    } else {
+      respuesta = await fetch(NVIDIA_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${llave}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cuerpoNvidia(modelo.id, pregunta, contexto, menu)),
+        signal: control.signal,
+      });
+    }
   } finally {
     clearTimeout(reloj);
   }
 
   if (!respuesta.ok) {
-    throw new Error(`${modelo}: ${respuesta.status}`);
+    throw new Error(`${etiqueta}: ${respuesta.status}`);
   }
 
   const datos = await respuesta.json();
-  const contenido = datos?.choices?.[0]?.message?.content ?? '';
-  const consulta = normalizarConsulta(primerObjeto(contenido));
+  const consulta = normalizarConsulta(primerObjeto(textoDeRespuesta(modelo.proveedor, datos)));
   if (!consulta) {
-    throw new Error(`${modelo}: respuesta no interpretable`);
+    throw new Error(`${etiqueta}: respuesta no interpretable`);
   }
   return consulta;
 }
 
 async function interpretar(pregunta, contexto, menu) {
-  const llave = process.env.NVIDIA_API_KEY;
-  if (!llave) {
-    throw new Error('Falta la llave NVIDIA_API_KEY en el servidor.');
-  }
-
   let ultimoError = null;
   for (const modelo of MODELOS) {
+    const llave = modelo.proveedor === 'google' ? process.env.GOOGLE_API_KEY : process.env.NVIDIA_API_KEY;
+    if (!llave) {
+      ultimoError = new Error(`Falta la llave ${modelo.proveedor === 'google' ? 'GOOGLE_API_KEY' : 'NVIDIA_API_KEY'} en el servidor.`);
+      continue;
+    }
     try {
-      return await preguntarAlModelo(modelo, pregunta, contexto, menu, llave);
+      return await llamarAlModelo(modelo, pregunta, contexto, menu, llave);
     } catch (error) {
       console.error('Interpretación fallida:', error.message);
       ultimoError = error;
