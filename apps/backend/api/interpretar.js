@@ -73,6 +73,9 @@ Reglas:
 - Cuando la pregunta pida cuantos/cuantas o un porcentaje de un grupo (los de tal carrera,
   los que trabajan...), separa: el GRUPO va en "filtros" y lo que se cuenta va en
   "pregunta_objetivo" con sus "valores_objetivo". Nunca pongas como filtro lo que se cuenta.
+- Cada valor (en "filtros" y en "valores_objetivo") es una cadena copiada LITERALMENTE de las
+  opciones de esa pregunta en el menú. Nunca pongas como valor el nombre o la explicación de una
+  equivalencia: una equivalencia solo sirve para elegir las opciones del menú.
 - No escribes cifras ni respondes la pregunta: solo llenas el formulario.
 - Si el menú no alcanza para responder, "se_puede" es false.`;
 
