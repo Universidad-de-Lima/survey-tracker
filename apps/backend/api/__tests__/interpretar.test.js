@@ -8,7 +8,7 @@ globalThis.fetch = (...args) => fetchMock(...args);
 
 
 const {
-  default: interpretar, primerObjeto, normalizarConsulta, normalizarPlan, limpiarRespuesta, armarMensaje,
+  default: interpretar, primerObjeto, normalizarConsulta, normalizarPlan, armarMensaje,
   textoDeRespuesta, MODELOS,
 } = await import('../interpretar.js');
 
@@ -130,7 +130,7 @@ describe('formulario de la pregunta (contexto + menú)', () => {
       filtros: [{ pregunta: '', valores: ['y'] }, { pregunta: 'Carrera', valores: [] }],
     });
 
-    expect(p.periodos).toEqual(['a', 'b', 'c']);
+    expect(p.periodos).toEqual(['a', 'b']);
     expect(p.preguntas).toEqual(['x']);
     expect(p.filtros).toEqual([]);
   });
