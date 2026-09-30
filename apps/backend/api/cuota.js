@@ -5,8 +5,8 @@
 // Solo lectura y sin datos personales: dos números.
 // ============================================================
 
-import { applyCors } from '../lib/sessions.js';
 import { leerCupo, LIMITE_MINUTO, LIMITE_DIA } from '../lib/cuota.js';
+import { applyCors } from '../lib/sessions.js';
 
 export default async (req, res) => {
   applyCors(res, { methods: 'GET, OPTIONS' });
