@@ -36,7 +36,7 @@ const OPERACIONES = [
 ];
 
 const MAX_PREGUNTA = 300;
-const MAX_CONTEXTO = 6000;
+const MAX_CONTEXTO = 8000;
 const MAX_MENU = 40000;
 const MAX_BLOQUES = 20000;
 const MAX_TOKENS = 500;
