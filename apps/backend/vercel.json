@@ -28,10 +28,6 @@
       "dest": "api/procesar-encuesta.js"
     },
     {
-      "src": "/api/preguntas",
-      "dest": "api/preguntas.js"
-    },
-    {
       "src": "/api/interpretar",
       "dest": "api/interpretar.js"
     },
