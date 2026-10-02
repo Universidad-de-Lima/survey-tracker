@@ -290,11 +290,11 @@ describe('formulario de la pregunta (contexto + menú)', () => {
   });
 });
 
-test('por defecto la cadena es solo Google y la respuesta prohibe el razonamiento', () => {
-  assert.strictEqual(USAR_NVIDIA, false, 'NVIDIA apagado por defecto');
-  assert.deepStrictEqual(MODELOS.map((m) => m.proveedor), ['google'], 'la lista por defecto es solo Google');
+it('por defecto la cadena es solo Google y la respuesta prohibe el razonamiento', () => {
+  expect(USAR_NVIDIA).toBe(false);
+  expect(MODELOS.map((m) => m.proveedor)).toEqual(['google']);
   delete process.env.INTERPRETAR_USAR_NVIDIA;
-  assert.strictEqual(cadenaDeModelos().length, 1, 'sin la variable, la cadena es de un solo modelo');
-  assert.ok(/No escribas tu razonamiento/.test(INSTRUCCIONES_RESPUESTA), 'prohibe el razonamiento');
-  assert.ok(/empieza directo con ella/.test(INSTRUCCIONES_RESPUESTA), 'empieza con la respuesta');
+  expect(cadenaDeModelos().length).toBe(1);
+  expect(INSTRUCCIONES_RESPUESTA).toMatch(/No escribas tu razonamiento/);
+  expect(INSTRUCCIONES_RESPUESTA).toMatch(/empieza directo con ella/);
 });
