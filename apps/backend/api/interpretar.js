@@ -23,12 +23,22 @@ const NVIDIA_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
 const GOOGLE_URL = (modelo) => `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`;
 
 // Cadena de modelos: si uno falla o no responde bien, se prueba el siguiente.
-export const MODELOS = [
+// NVIDIA queda APAGADO momentaneamente (2026-10-01): sus modelos devolvian su razonamiento interno en
+// ingles en el paso "respuesta". Para volver a encenderlo, cambiar USAR_NVIDIA a true (o poner false
+// para apagarlo otra vez). La cadena y sus tiempos no cambian.
+export const USAR_NVIDIA = false;
+
+const CADENA_GOOGLE = [
   { proveedor: 'google', id: 'gemini-3.5-flash-lite' },
+];
+
+const CADENA_NVIDIA = [
   { proveedor: 'nvidia', id: 'nvidia/nemotron-3.5-lightning-30b-a3b' },
   { proveedor: 'nvidia', id: 'z-ai/glm-5.3-flash' },
   { proveedor: 'nvidia', id: 'poolside/laguna-xs-2.1' },
 ];
+
+export const MODELOS = CADENA_GOOGLE.concat(USAR_NVIDIA ? CADENA_NVIDIA : []);
 
 const OPERACIONES = [
   'contar', 'porcentaje', 'cruce', 'listar', 'nps', 'satisfaccion', 'carreras', 'facultades', 'ciclos',
@@ -136,6 +146,10 @@ Respondes en español, claro y breve (una a cuatro frases), usando SOLO esos dat
   las que más bajaron, la más alta y la más baja, el rango) con sus cifras. Nunca respondas que la pregunta es
   "demasiado amplia", "general" o "excede el alcance": eso no existe.
 - No repitas la pregunta ni expliques el proceso.
+- **Escribe SOLO la respuesta, en espanol, y empieza directo con ella.** No escribas tu razonamiento (nada de
+  "thinking process", "analyze", pasos numerados, títulos ni notas de como vas a responder) y no escribas nada
+  en ingles. Si el texto empieza contando como analizaste la pregunta o las reglas, esta mal: borralo y empieza
+  con la respuesta.
 - Cuando una tabla ayude a entender mejor la respuesta (comparar categorías, ordenar valores, mostrar varios
   datos de una misma cosa), agrega al final una tabla, después del texto y antes de la línea de la fuente, así:
     Tabla: <título de la columna 1> | <título de la columna 2>
