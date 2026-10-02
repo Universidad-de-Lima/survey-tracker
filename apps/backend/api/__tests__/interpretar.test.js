@@ -106,6 +106,30 @@ describe('formulario de la pregunta (contexto + menú)', () => {
     expect(enviado.systemInstruction.parts[0].text).toContain('QUÉ DATOS HAY QUE LEER');
   });
 
+  it('la instrucción del paso "plan" distingue la columna por la que se agrupa de la pregunta que se mide', async () => {
+    fetchMock.mockReturnValue(modeloGoogle('{"se_puede":true,"periodos":[],"preguntas":[],"filtros":[],"motivo":""}'));
+    const res = createRes();
+
+    await interpretar({ method: 'POST', body: { pregunta: 'Compara las carreras del 2026-1', paso: 'plan' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    const instruccion = JSON.parse(fetchMock.mock.calls[0][1].body).systemInstruction.parts[0].text;
+
+    // Los dos papeles, dichos en general: columna por la que se agrupa / pregunta que se mide.
+    expect(instruccion).toMatch(/columnas?[^.\n]*agrup/i);
+    expect(instruccion).toMatch(/preguntas?[^.\n]*se miden/i);
+    // Comparar entre categorías: se agrupa por la columna, no se lee la pregunta de satisfacción parecida,
+    // y no se niega cuando piden comparar.
+    expect(instruccion).toMatch(/comparar entre categor/i);
+    expect(instruccion).toMatch(/no debes leer la pregunta/i);
+    expect(instruccion).toMatch(/no te niegues/i);
+    // Es UNA regla general, no una instrucción por pregunta (una lista de casos).
+    const casos = instruccion
+      .split('\n')
+      .filter((l) => /^\s*-\s/.test(l) && /columna/i.test(l) && /(medid|se mide)/i.test(l));
+    expect(casos.length).toBeLessThanOrEqual(1);
+  });
+
   it('el paso "respuesta" redacta con los datos que le manda el portal', async () => {
     fetchMock.mockReturnValue(modeloGoogle('```\n# En 2025-2 hubo 3998 respuestas.\nFuente: Estudiantes Pregrado 2025-2\n```'));
     const res = createRes();
