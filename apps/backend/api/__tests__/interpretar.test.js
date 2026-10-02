@@ -9,7 +9,7 @@ globalThis.fetch = (...args) => fetchMock(...args);
 
 const {
   default: interpretar, primerObjeto, normalizarConsulta, normalizarPlan, armarMensaje,
-  textoDeRespuesta, MODELOS,
+  textoDeRespuesta, MODELOS, INSTRUCCIONES_RESPUESTA,
 } = await import('../interpretar.js');
 
 /** Respuesta estilo NVIDIA (formato OpenAI). */
@@ -121,6 +121,14 @@ describe('formulario de la pregunta (contexto + menú)', () => {
     const enviado = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(enviado.contents[0].parts[0].text).toContain('## Datos');
     expect(enviado.systemInstruction.parts[0].text).toContain('SOLO esos datos');
+  });
+
+  it('la instrucción del paso "respuesta" pide la tabla y ya no la prohíbe', () => {
+    // la instrucción pide tabla cuando se comparan categorías, y ya no la prohíbe
+    expect(INSTRUCCIONES_RESPUESTA).toMatch(/agrega al final una tabla/);
+    expect(INSTRUCCIONES_RESPUESTA).toMatch(/POCAS columnas y muchas filas/);
+    expect(INSTRUCCIONES_RESPUESTA).not.toMatch(/no armes tablas/);
+    expect(INSTRUCCIONES_RESPUESTA).not.toMatch(/máximo de columnas|máximo 3 columnas/i);
   });
 
   it('el plan recorta listas disparatadas (períodos, preguntas y filtros)', () => {
