@@ -156,6 +156,19 @@ describe('formulario de la pregunta (contexto + menú)', () => {
     expect(INSTRUCCIONES_RESPUESTA).not.toMatch(/máximo de columnas|máximo 3 columnas/i);
   });
 
+  it('la instrucción del paso "respuesta" exige la tabla completa al listar categorías y sin columnas inventadas', () => {
+    // Al listar categorías (carreras, facultades, ciclos...) van TODAS las que estén en los datos: no se omite ninguna.
+    expect(INSTRUCCIONES_RESPUESTA).toMatch(/lista categorías/);
+    expect(INSTRUCCIONES_RESPUESTA).toMatch(/van TODAS las que estén en los datos/);
+    expect(INSTRUCCIONES_RESPUESTA).toMatch(/no se omite ninguna/);
+    // Con demasiadas categorías se avisa en el texto y se dice cuáles quedaron fuera de la tabla.
+    expect(INSTRUCCIONES_RESPUESTA).toMatch(/más de veinte/);
+    expect(INSTRUCCIONES_RESPUESTA).toMatch(/quedaron fuera/);
+    // Las columnas y las cifras salen de los datos: no se inventan columnas ni se reformatean las cifras.
+    expect(INSTRUCCIONES_RESPUESTA).toMatch(/no inventes columnas/);
+    expect(INSTRUCCIONES_RESPUESTA).toMatch(/tal como vienen en los datos/);
+  });
+
   it('el plan recorta listas disparatadas (períodos, preguntas y filtros)', () => {
     const p = normalizarPlan({
       periodos: ['a', '', 'b', 'c', 'd'],
