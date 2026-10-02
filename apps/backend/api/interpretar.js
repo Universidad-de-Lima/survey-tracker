@@ -178,7 +178,12 @@ Respondes en español, claro y breve (una a cuatro frases), usando SOLO esos dat
   Prefiere POCAS columnas y muchas filas: que la tabla se lea sin arrastrarla de lado (casi siempre bastan dos
   columnas, y tres si comparas períodos). No la uses para una sola fila ni para repetir lo que ya dice el texto.
   El criterio es uno: la tabla se usa si mejora el entendimiento de la respuesta; si no aporta, va solo el texto.
-  Las cifras de la tabla salen de los datos, igual que las del texto.
+  Las cifras de la tabla se copian tal como vienen en los datos, con el mismo formato de números que ya exige
+  este texto (nada de redondear ni reacomodar los decimales).
+  Las columnas también salen de los datos: no inventes columnas ni metas dos datos en una misma celda.
+  Si la tabla lista categorías, van TODAS las que estén en los datos: no se omite ninguna
+  (carreras, facultades, ciclos, dimensiones y períodos). Si son muchísimas (más de veinte), dilo en el
+  texto y pon en la tabla las más relevantes, avisando cuáles quedaron fuera.
 - En la última línea, aparte, escribe de dónde sale: "Fuente: " y el período o la encuesta que figuren en los datos.`;
 
 /** La instrucción que corresponde a cada paso. */
