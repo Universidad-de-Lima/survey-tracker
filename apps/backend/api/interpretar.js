@@ -40,6 +40,17 @@ const CADENA_NVIDIA = [
 
 export const MODELOS = CADENA_GOOGLE.concat(USAR_NVIDIA ? CADENA_NVIDIA : []);
 
+/**
+ * La cadena que se usa de verdad. NVIDIA esta apagado por defecto; con la variable de entorno
+ * INTERPRETAR_USAR_NVIDIA=1 se enciende (y con 0 se apaga) sin tocar el codigo. Lo usan las pruebas
+ * del respaldo entre modelos.
+ */
+export function cadenaDeModelos() {
+  const puesto = process.env.INTERPRETAR_USAR_NVIDIA;
+  const usarNvidia = puesto === '1' ? true : (puesto === '0' ? false : USAR_NVIDIA);
+  return usarNvidia ? CADENA_GOOGLE.concat(CADENA_NVIDIA) : CADENA_GOOGLE;
+}
+
 const OPERACIONES = [
   'contar', 'porcentaje', 'cruce', 'listar', 'nps', 'satisfaccion', 'carreras', 'facultades', 'ciclos',
   'dimensiones', 'comentarios', 'temas', 'comparacion', 'fechas', 'periodos', 'ninguna',
@@ -354,7 +365,7 @@ export async function llamarAlModelo(modelo, pregunta, contexto, menu, llave, pa
 
 async function interpretar(pregunta, contexto, menu, paso = 'formulario', bloques = '') {
   let ultimoError = null;
-  for (const modelo of MODELOS) {
+  for (const modelo of cadenaDeModelos()) {
     const llave = modelo.proveedor === 'google' ? process.env.GOOGLE_API_KEY : process.env.NVIDIA_API_KEY;
     if (!llave) {
       ultimoError = new Error(`Falta la llave ${modelo.proveedor === 'google' ? 'GOOGLE_API_KEY' : 'NVIDIA_API_KEY'} en el servidor.`);

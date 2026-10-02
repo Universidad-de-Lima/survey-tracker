@@ -7,10 +7,11 @@ let fetchMock;
 globalThis.fetch = (...args) => fetchMock(...args);
 
 
-const {
-  default: interpretar, primerObjeto, normalizarConsulta, normalizarPlan, armarMensaje,
-  textoDeRespuesta, MODELOS, INSTRUCCIONES_RESPUESTA,
-} = await import('../interpretar.js');
+const { default: interpretar, primerObjeto, normalizarConsulta, normalizarPlan, armarMensaje, textoDeRespuesta, MODELOS, INSTRUCCIONES_RESPUESTA, cadenaDeModelos, USAR_NVIDIA } = await import('../interpretar.js');
+
+// Las pruebas del respaldo prueban la cadena completa: se enciende NVIDIA solo aqui, por variable de
+// entorno. El comportamiento por defecto (NVIDIA apagado) se comprueba en la ultima prueba del archivo.
+beforeEach(() => { process.env.INTERPRETAR_USAR_NVIDIA = '1'; });
 
 /** Respuesta estilo NVIDIA (formato OpenAI). */
 function modelo(contenido, { status = 200 } = {}) {
@@ -287,4 +288,13 @@ describe('formulario de la pregunta (contexto + menú)', () => {
 
     expect(res.statusCode).toBe(405);
   });
+});
+
+test('por defecto la cadena es solo Google y la respuesta prohibe el razonamiento', () => {
+  assert.strictEqual(USAR_NVIDIA, false, 'NVIDIA apagado por defecto');
+  assert.deepStrictEqual(MODELOS.map((m) => m.proveedor), ['google'], 'la lista por defecto es solo Google');
+  delete process.env.INTERPRETAR_USAR_NVIDIA;
+  assert.strictEqual(cadenaDeModelos().length, 1, 'sin la variable, la cadena es de un solo modelo');
+  assert.ok(/No escribas tu razonamiento/.test(INSTRUCCIONES_RESPUESTA), 'prohibe el razonamiento');
+  assert.ok(/empieza directo con ella/.test(INSTRUCCIONES_RESPUESTA), 'empieza con la respuesta');
 });
