@@ -24,10 +24,10 @@
 // Compatibilidad: Node 26 (y cualquier Node >= 18 con fetch global).
 // ============================================================
 
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { stat } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
-import { stat } from 'node:fs/promises';
-import { createReadStream, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 

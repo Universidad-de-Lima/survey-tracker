@@ -1,7 +1,8 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { crearServidor, resolverSitio, tipoMime } from '../../servidor-local.js';
 
@@ -109,8 +110,10 @@ describe('servidor local: /api/interpretar', () => {
 
   it('reutiliza el handler de Vercel: con una respuesta simulada devuelve la consulta', async () => {
     process.env.GOOGLE_API_KEY = 'llave-de-prueba';
-    // El intérprete real llama a Google con fetch; aquí se simula la respuesta
-    // para no tocar la red ni ningún modelo.
+    // El servidor llama internamente a `fetch`; aquí se simula ESA llamada para
+    // no tocar la red ni ningún modelo. La petición al servidor de prueba debe
+    // usar el fetch real (realFetch), o se la comería el propio simulacro.
+    const realFetch = original.fetch;
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -119,7 +122,7 @@ describe('servidor local: /api/interpretar', () => {
       }),
     });
 
-    const r = await fetch(base + '/api/interpretar', {
+    const r = await realFetch(base + '/api/interpretar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pregunta: '¿Cuál es el NPS?' }),
