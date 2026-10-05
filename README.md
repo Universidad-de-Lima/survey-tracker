@@ -122,6 +122,7 @@ Detalle completo en [docs/api/README.md](./docs/api/README.md).
 | POST | `/api/reset-counts` | Pone los contadores a cero |
 | GET | `/api/health` | Igual que `get-counts`: comprueba de un vistazo que el backend responde |
 | POST | `/api/procesar-encuesta` | Lo llama el portal para pedir la actualización de datos |
+| POST | `/api/interpretar` | Asistente del portal (ítem 1.9): la IA elige qué datos leer y redacta |
 
 ## Estructura del proyecto
 
@@ -135,7 +136,9 @@ survey-tracker/
 │   │   │   ├── done.js             # cuenta la finalización + página de gracias
 │   │   │   ├── get-counts.js       # contadores para el panel
 │   │   │   ├── reset-counts.js     # botón RESET
+│   │   │   ├── interpretar.js      # IA del asistente del portal
 │   │   │   └── procesar-encuesta.js # pide al portal que actualice sus datos
+│   │   ├── servidor-local.js       # servidor Node sin dependencias (portal + IA, sin Vercel)
 │   │   ├── lib/
 │   │   │   ├── firebase.js       # Firebase Admin + incremento atómico
 │   │   │   └── sessions.js       # rutas de la sesión y cálculo de contadores
@@ -206,6 +209,21 @@ pnpm --filter @survey-tracker/frontend build
 
 > **Aviso:** `apps/backend/vercel.json` declara las rutas **una a una**. Un endpoint nuevo
 > que no se añada ahí se compila pero devuelve **404**, y ni el CI ni Vercel avisan.
+
+## Servidor local (sin Vercel)
+
+El portal y el intérprete de IA (`/api/interpretar`) también pueden correr en la propia PC, en
+horario laboral, sin Vercel: `apps/backend/servidor-local.js` es un servidor Node **sin
+dependencias** (solo módulos estándar) que sirve los archivos del portal de `survey-test` y
+reutiliza el handler de la IA que ya corre en Vercel.
+
+```bash
+node --env-file="C:\Users\jloayzac\portal-survey\ia.env" apps/backend/servidor-local.js
+```
+
+El archivo `ia.env` vive **fuera de todo repositorio** (en `C:\Users\jloayzac\portal-survey\`) y
+contiene `GOOGLE_API_KEY`, `SITIO_DIR` y `PUERTO`. Detalle completo, arranque oculto con `.vbs` y
+cómo probarlo desde otra PC en [docs/servidor-local.md](./docs/servidor-local.md).
 
 ## Límites y consideraciones
 
