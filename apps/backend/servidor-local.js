@@ -1,25 +1,19 @@
 // ============================================================
-// Servidor local del portal de encuestas + intérprete de IA.
+// Servidor local del portal de encuestas.
 // ------------------------------------------------------------
 // Reemplaza a Vercel para correr todo en la PC del usuario, sin dependencias:
 // usa SOLO los módulos estándar de Node (http, fs, path, url, os).
 //
 // Qué hace:
-//   1. Sirve por HTTP la carpeta de archivos estáticos del portal (SITIO_DIR).
-//      Sirve "/" como index.html, con el tipo MIME correcto, 404 claro si el
-//      archivo no existe y SIN listar directorios.
-//   2. Atiende POST /api/interpretar reutilizando tal cual el handler que ya
-//      corre en Vercel (apps/backend/api/interpretar.js): se le pasa un
-//      "req" con el cuerpo ya parseado y un "res" con status()/json()/
-//      setHeader()/end(), y el handler escribe la respuesta real.
+//   Sirve por HTTP la carpeta de archivos estáticos del portal (SITIO_DIR).
+//   Sirve "/" como index.html, con el tipo MIME correcto, 404 claro si el
+//   archivo no existe y SIN listar directorios.
 //
 // Cómo arranca el usuario (ver docs/servidor-local.md):
-//   node --env-file="C:\ruta\ia.env" apps/backend/servidor-local.js
+//   node --env-file="C:\ruta\portal.env" apps/backend/servidor-local.js
 // Ese archivo .env vive FUERA de todo repositorio y contiene:
-//   GOOGLE_API_KEY=...
 //   SITIO_DIR=Q:\ANALISTA DE DATOS\1. GitHub\survey-test\zoho-survey
 //   PUERTO=8000
-// La clave NUNCA se lee de un archivo del repositorio ni se imprime.
 //
 // Compatibilidad: Node 26 (y cualquier Node >= 18 con fetch global).
 // ============================================================
@@ -30,8 +24,6 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import interpretar from './api/interpretar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -83,7 +75,7 @@ export function resolverSitio(dir = process.env.SITIO_DIR) {
   throw new Error(
     dir
       ? `SITIO_DIR no es una carpeta válida: ${dir}`
-      : 'No se encontró la carpeta del portal. Define SITIO_DIR en el archivo de configuración (ia.env) con la ruta de zoho-survey.',
+      : 'No se encontró la carpeta del portal. Define SITIO_DIR en el archivo de configuración (portal.env) con la ruta de zoho-survey.',
   );
 }
 
@@ -145,92 +137,11 @@ function enviarArchivo(res, destino, info) {
   createReadStream(destino).pipe(res);
 }
 
-// ---------- /api/interpretar ----------
-/** Lee todo el cuerpo de la petición como texto. */
-function leerCuerpo(req) {
-  return new Promise((ok, mal) => {
-    const trozos = [];
-    req.on('data', (t) => trozos.push(t));
-    req.on('end', () => ok(Buffer.concat(trozos).toString('utf8')));
-    req.on('error', mal);
-  });
-}
-
-/**
- * Doble de la respuesta de Vercel: el handler de interpretar.js escribe con
- * status()/setHeader()/json()/end() y este objeto lo traduce al http real.
- */
-function respuestaAdaptada(res) {
-  return {
-    statusCode: 200,
-    headers: {},
-    status(code) {
-      this.statusCode = code;
-      return this;
-    },
-    setHeader(clave, valor) {
-      this.headers[clave] = valor;
-      return this;
-    },
-    json(datos) {
-      const cuerpo = JSON.stringify(datos);
-      this.setHeader('Content-Type', 'application/json; charset=utf-8');
-      this.setHeader('Content-Length', Buffer.byteLength(cuerpo));
-      res.writeHead(this.statusCode, this.headers);
-      res.end(cuerpo);
-    },
-    end(cuerpo) {
-      res.writeHead(this.statusCode, this.headers);
-      res.end(cuerpo === undefined ? undefined : String(cuerpo));
-    },
-  };
-}
-
-async function manejarInterpretar(req, res) {
-  if (req.method !== 'POST') {
-    return enviarJson(res, 405, { error: 'Método no permitido: /api/interpretar solo atiende POST.' });
-  }
-
-  let cuerpo;
-  try {
-    const texto = await leerCuerpo(req);
-    cuerpo = JSON.parse(texto);
-  } catch {
-    return enviarJson(res, 400, { error: 'El cuerpo de la petición no es JSON válido.' });
-  }
-
-  // La clave se lee en cada petición y NUNCA se imprime. Sin clave el servidor
-  // sigue arrancado; esta ruta responde un error claro.
-  if (!process.env.GOOGLE_API_KEY) {
-    return enviarJson(res, 500, {
-      error: 'Falta configurar GOOGLE_API_KEY en el servidor local. Agrégala al archivo ia.env y reinicia el portal.',
-    });
-  }
-
-  try {
-    await interpretar({ method: 'POST', headers: req.headers, body: cuerpo }, respuestaAdaptada(res));
-  } catch (error) {
-    // Nunca debe caerse por una excepción: se registra y se responde 500 claro.
-    console.error('Error al atender /api/interpretar:', error && error.message);
-    if (!res.headersSent) {
-      enviarJson(res, 500, { error: 'No se pudo interpretar la pregunta.' });
-    }
-  }
-}
-
 // ---------- manejador y servidor ----------
 export function crearManejador({ sitio }) {
   return function (req, res) {
     // Mismo origen: se permite el origen de la propia petición (no CORS abierto).
     if (req.headers && req.headers.origin) res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
-    const ruta = (req.url || '/').split('?')[0];
-    if (ruta === '/api/interpretar') {
-      manejarInterpretar(req, res).catch((error) => {
-        console.error('Error inesperado en /api/interpretar:', error && error.message);
-        if (!res.headersSent) enviarJson(res, 500, { error: 'Error interno del servidor.' });
-      });
-      return;
-    }
     servirArchivo(req, res, sitio).catch(() => noEncontrado(res));
   };
 }
@@ -271,9 +182,6 @@ if (esPrincipal) {
   });
   servidor.listen(puerto, () => {
     const direcciones = direccionesDeEscucha(puerto).join('  |  ');
-    console.log(
-      `Portal disponible en ${direcciones} — carpeta servida: ${sitio}` +
-        (process.env.GOOGLE_API_KEY ? '' : ' (aviso: falta GOOGLE_API_KEY; /api/interpretar no responderá)'),
-    );
+    console.log(`Portal disponible en ${direcciones} — carpeta servida: ${sitio}`);
   });
 }

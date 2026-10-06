@@ -2,13 +2,11 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { crearServidor, resolverSitio, tipoMime } from '../../servidor-local.js';
 
-// Estas pruebas NO llaman a ningún modelo real ni a internet: el único POST que
-// llega al intérprete usa un `fetch` simulado. Las demás solo leen archivos
-// temporales creados aquí.
+// Estas pruebas no llaman a internet: solo leen archivos temporales creados aquí.
 
 let sitio;
 let servidor;
@@ -66,72 +64,6 @@ describe('servidor local: archivos estáticos', () => {
     const r = await fetch(base + '/../../servidor-local.js');
 
     expect(r.status).toBe(404);
-  });
-});
-
-describe('servidor local: /api/interpretar', () => {
-  const original = { key: process.env.GOOGLE_API_KEY, fetch: globalThis.fetch };
-
-  beforeEach(() => {
-    globalThis.fetch = original.fetch;
-    if (original.key === undefined) delete process.env.GOOGLE_API_KEY;
-    else process.env.GOOGLE_API_KEY = original.key;
-  });
-
-  it('405 cuando el método no es POST', async () => {
-    const r = await fetch(base + '/api/interpretar', { method: 'GET' });
-
-    expect(r.status).toBe(405);
-    expect((await r.json()).error).toBeTruthy();
-  });
-
-  it('400 cuando el cuerpo no es JSON válido', async () => {
-    const r = await fetch(base + '/api/interpretar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: 'esto no es json',
-    });
-
-    expect(r.status).toBe(400);
-    expect((await r.json()).error).toBeTruthy();
-  });
-
-  it('responde un error claro (no se cuelga) cuando falta GOOGLE_API_KEY', async () => {
-    delete process.env.GOOGLE_API_KEY;
-    const r = await fetch(base + '/api/interpretar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pregunta: '¿Cuántos respondieron?' }),
-    });
-
-    expect(r.status).toBe(500);
-    expect((await r.json()).error).toContain('GOOGLE_API_KEY');
-  });
-
-  it('reutiliza el handler de Vercel: con una respuesta simulada devuelve la consulta', async () => {
-    process.env.GOOGLE_API_KEY = 'llave-de-prueba';
-    // El servidor llama internamente a `fetch`; aquí se simula ESA llamada para
-    // no tocar la red ni ningún modelo. La petición al servidor de prueba debe
-    // usar el fetch real (realFetch), o se la comería el propio simulacro.
-    const realFetch = original.fetch;
-    globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        candidates: [{ content: { parts: [{ text: '{"se_puede":true,"operacion":"nps","periodo":"2026-1"}' }] } }],
-      }),
-    });
-
-    const r = await realFetch(base + '/api/interpretar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pregunta: '¿Cuál es el NPS?' }),
-    });
-    const datos = await r.json();
-
-    expect(r.status).toBe(200);
-    expect(datos.consulta.operacion).toBe('nps');
-    globalThis.fetch = original.fetch;
   });
 });
 
