@@ -21,7 +21,12 @@ afterEach(() => {
 
 describe('DashboardPanel', () => {
   it('muestra los tres contadores con los valores que recibe', () => {
-    render(<DashboardPanel counts={{ scanned: 30, completed: 28, pending: 2 }} isLoading={false} />);
+    render(
+      <DashboardPanel
+        counts={{ scanned: 30, completed: 28, pending: 2, firstScanAt: null, lastCompletedAt: null }}
+        isLoading={false}
+      />,
+    );
     vi.advanceTimersByTime(1000);
 
     expect(screen.getByText('Escaneos Totales')).toBeInTheDocument();
