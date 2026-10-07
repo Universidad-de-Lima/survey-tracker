@@ -24,6 +24,8 @@ Es el destino del QR proyectado. Cuenta el escaneo y redirige al alumno a la enc
 **Efectos:**
 - Incrementa `sessions/<sesion>/scanned` con un incremento atómico resuelto en el servidor de
   Firebase (`ServerValue.increment`), sin ciclo leer-modificar-escribir.
+- Guarda `sessions/<sesion>/firstScanAt` la primera vez de cada salón (si ya hay marca, no la
+  toca): es el arranque del cronómetro del panel. El conteo no depende de esta marca.
 - No deja ninguna cookie: cada escaneo suma, aunque venga del mismo celular.
 
 **Robustez:** el contador es lo de menos. Si Firebase falla, **igual se redirige a la
@@ -46,6 +48,8 @@ webhook: no hay cabeceras ni secretos que configurar, sólo pegar la URL una vez
 
 **Efectos:**
 - Incrementa `sessions/<sesion>/completed`.
+- Reescribe `sessions/<sesion>/lastCompletedAt` en cada finalización: al cerrar el salón queda
+  la del último alumno que terminó, que es el final del cronómetro.
 - No deja ninguna cookie: cada finalización suma.
 
 **Robustez:** aunque falle el conteo, el alumno **siempre** ve el agradecimiento.
@@ -63,8 +67,18 @@ Devuelve los contadores para el panel.
 **Output:** HTTP 200
 
 ```json
-{ "scanned": 30, "completed": 28, "pending": 2, "sessionId": "default" }
+{
+  "scanned": 30,
+  "completed": 28,
+  "pending": 2,
+  "firstScanAt": 1758800000000,
+  "lastCompletedAt": 1758801500000,
+  "sessionId": "default"
+}
 ```
+
+`firstScanAt` y `lastCompletedAt` son marcas de tiempo (milisegundos desde 1970) o `null` si
+todavía no existen. Con ellas el panel mide cuánto tardó el salón, sin pedir nada aparte.
 
 - HTTP 405 `{ error: "Método no permitido." }`
 - HTTP 500 `{ error: "Error interno del servidor al obtener los contadores." }`
@@ -106,7 +120,9 @@ El botón `RESET` del panel: pone los contadores a cero para el siguiente salón
 - HTTP 500 `{ error: "Error interno del servidor al resetear contadores." }`
 - HTTP 204 para `OPTIONS`
 
-**Efectos:** deja `sessions/<sesion>` en `{ scanned: 0, completed: 0 }`.
+**Efectos:** deja `sessions/<sesion>` en `{ scanned: 0, completed: 0 }`. Al reemplazar el nodo
+completo, borra también las marcas del cronómetro (`firstScanAt` y `lastCompletedAt`): el
+cronómetro vuelve a `00:00` y arranca de nuevo con el próximo escaneo.
 
 **Decisión de diseño:** no pide clave. Del toque accidental protege la confirmación del propio
 botón, y lo que un tercero podría conseguir con la URL es descuadrar un número en pantalla:
@@ -166,6 +182,9 @@ La excepción es `/api/procesar-encuesta`, que solo acepta el origen del portal 
   los reintentos del ciclo leer-modificar-escribir y la latencia que espera el alumno.
 - **Sesiones:** los contadores viven en `sessions/<sesion>/`. La campaña usa `default`; el
   parámetro `?s=` se mantiene porque los QR antiguos lo llevan y no estorba.
+- **Cronómetro:** vive dentro del mismo nodo de la sesión (`firstScanAt`, `lastCompletedAt`), así
+  que el panel lo recibe en la misma consulta que los contadores y no hay peticiones extra. Se
+  congela cuando no queda nadie pendiente y lo borra el `RESET`.
 - **Sin deduplicación:** cada escaneo y cada finalización suman uno. Se pidió así a propósito:
   el contador refleja exactamente lo que llega, sin nada por detrás.
 - **Enrutado:** `apps/backend/vercel.json` declara las rutas una a una. Un endpoint nuevo que

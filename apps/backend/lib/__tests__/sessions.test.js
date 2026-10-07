@@ -7,8 +7,11 @@ import {
   sanitizeKey,
   sessionBase,
   sessionCompletedRef,
+  sessionFirstScanRef,
+  sessionLastCompletedRef,
   sessionScannedRef,
   toCounts,
+  toSessionTimes,
 } from '../sessions.js';
 
 describe('sanitizeKey', () => {
@@ -62,6 +65,25 @@ describe('session paths', () => {
     expect(sessionBase('s1')).toBe('sessions/s1');
     expect(sessionScannedRef('s1')).toBe('sessions/s1/scanned');
     expect(sessionCompletedRef('s1')).toBe('sessions/s1/completed');
+    expect(sessionFirstScanRef('s1')).toBe('sessions/s1/firstScanAt');
+    expect(sessionLastCompletedRef('s1')).toBe('sessions/s1/lastCompletedAt');
+  });
+});
+
+describe('toSessionTimes', () => {
+  it('devuelve las dos marcas del cronómetro', () => {
+    expect(toSessionTimes({ firstScanAt: 1000, lastCompletedAt: 2000 })).toEqual({
+      firstScanAt: 1000,
+      lastCompletedAt: 2000,
+    });
+  });
+
+  it('devuelve null cuando la sesión todavía no tiene marcas', () => {
+    expect(toSessionTimes(null)).toEqual({ firstScanAt: null, lastCompletedAt: null });
+    expect(toSessionTimes({ scanned: 5, completed: 5 })).toEqual({
+      firstScanAt: null,
+      lastCompletedAt: null,
+    });
   });
 });
 

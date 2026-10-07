@@ -33,11 +33,14 @@ cuándo puede pasar al siguiente salón.
 En Firebase Realtime Database hay **un único contador**:
 
 ```
-sessions/default/scanned      escaneos
-sessions/default/completed    encuestas terminadas
+sessions/default/scanned          escaneos
+sessions/default/completed        encuestas terminadas
+sessions/default/firstScanAt      marca del primer escaneo (arranca el cronómetro)
+sessions/default/lastCompletedAt  marca de la última encuesta terminada (cierra el cronómetro)
 ```
 
-`pending` (= `scanned − completed`) lo calcula el servidor y lo devuelve ya resuelto.
+`pending` (= `scanned − completed`) lo calcula el servidor y lo devuelve ya resuelto. Las dos
+marcas las pone el servidor de Firebase, nunca el reloj de un celular.
 
 ## Stack tecnológico
 
@@ -65,6 +68,18 @@ para que el contador refleje directamente lo que ocurre en el salón, sin nada p
 Consecuencia a tener en cuenta: si alguien escanea de más, «Pendientes» puede quedarse por
 encima de cero aunque ya hayan terminado todos. El encuestador lo resuelve pulsando `RESET`
 cuando comprueba que ya no queda nadie respondiendo.
+
+## El cronómetro del salón
+
+Arriba a la derecha del panel hay un cronómetro que mide **desde el primer escaneo del salón
+hasta la última encuesta terminada**:
+
+- Arranca con el primer escaneo del salón (antes de eso muestra `00:00`).
+- Mientras quede alguien respondiendo avanza en vivo, en minutos y segundos.
+- Cuando ya no queda nadie pendiente se queda **fijo** en el tiempo total que tardó el salón.
+- Si vuelve a escanear alguien, retoma la cuenta; el botón `RESET` lo devuelve a `00:00`.
+
+Sirve para saber cuánto dura de verdad cada salón y ajustar el ritmo de las visitas.
 
 ## Reset
 

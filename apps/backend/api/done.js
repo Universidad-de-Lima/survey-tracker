@@ -1,5 +1,9 @@
-import { getFirebaseDb, incrementBy } from '../lib/firebase.js';
-import { resolveSessionId, sessionCompletedRef } from '../lib/sessions.js';
+import { getFirebaseDb, incrementBy, serverTimestamp } from '../lib/firebase.js';
+import {
+  resolveSessionId,
+  sessionCompletedRef,
+  sessionLastCompletedRef,
+} from '../lib/sessions.js';
 
 const db = getFirebaseDb();
 
@@ -48,6 +52,9 @@ export default async (req, res) => {
   // Aunque el conteo falle, el alumno ya terminó: siempre ve el agradecimiento.
   try {
     await db.ref(sessionCompletedRef(sessionId)).set(incrementBy(1));
+    // Cada terminación reescribe la marca: al cerrar el salón queda la del último alumno
+    // que terminó, que es el final del cronómetro.
+    await db.ref(sessionLastCompletedRef(sessionId)).set(serverTimestamp());
     console.log(`Finalización contada en ${sessionId}.`);
   } catch (error) {
     console.error('Error al contar la finalización:', error);

@@ -74,7 +74,9 @@ planned: the counter is Firebase RTDB and it stays that way.
    before being redirected.
 3. **The counter path is shared**: `sessions/default/{scanned,completed}`, read by
    `get-counts` and written by `qr-scan`, `done` and `reset-counts`. Changing it means
-   changing every endpoint plus `lib/sessions.js`.
+   changing every endpoint plus `lib/sessions.js`. The same node holds the timer marks
+   (`firstScanAt` set once per classroom by `qr-scan`, `lastCompletedAt` rewritten by `done`),
+   which `reset-counts` wipes because it replaces the whole node.
 4. **The only secret is `GITHUB_DISPATCH_TOKEN`**, which `POST /api/procesar-encuesta` uses to
    ask GitHub for a portal rebuild; it lives only in Vercel and the browser never sees it. The
    counter itself needs no secret: `POST /api/reset-counts` is intentionally unprotected (an

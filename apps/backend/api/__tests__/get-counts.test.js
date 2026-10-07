@@ -21,6 +21,7 @@ globalThis.dbStore = {
 vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
   incrementBy: (amount) => ({ __increment__: amount }),
+  serverTimestamp: () => ({ __timestamp__: true }),
 }));
 
 const { default: getCounts } = await import('../get-counts.js');
@@ -41,7 +42,9 @@ beforeEach(() => {
 
 describe('GET /api/get-counts', () => {
   it('returns the counters of the default session', async () => {
-    onceMock.mockResolvedValue({ val: () => ({ scanned: 10, completed: 7 }) });
+    onceMock.mockResolvedValue({
+      val: () => ({ scanned: 10, completed: 7, firstScanAt: 1758800000000 }),
+    });
 
     const req = { method: 'GET' };
     const res = createRes();
@@ -50,7 +53,14 @@ describe('GET /api/get-counts', () => {
 
     expect(refMock).toHaveBeenCalledWith('sessions/default');
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ scanned: 10, completed: 7, pending: 3, sessionId: 'default' });
+    expect(res.body).toEqual({
+      scanned: 10,
+      completed: 7,
+      pending: 3,
+      firstScanAt: 1758800000000,
+      lastCompletedAt: null,
+      sessionId: 'default',
+    });
   });
 
   it('reads the session from ?s=', async () => {
@@ -73,7 +83,14 @@ describe('GET /api/get-counts', () => {
 
     await getCounts(req, res);
 
-    expect(res.body).toEqual({ scanned: 3, completed: 0, pending: 3, sessionId: 'default' });
+    expect(res.body).toEqual({
+      scanned: 3,
+      completed: 0,
+      pending: 3,
+      firstScanAt: null,
+      lastCompletedAt: null,
+      sessionId: 'default',
+    });
   });
 
   it('returns zeros for a session that has not started', async () => {
@@ -84,7 +101,34 @@ describe('GET /api/get-counts', () => {
 
     await getCounts(req, res);
 
-    expect(res.body).toEqual({ scanned: 0, completed: 0, pending: 0, sessionId: 'salon-nuevo' });
+    expect(res.body).toEqual({
+      scanned: 0,
+      completed: 0,
+      pending: 0,
+      firstScanAt: null,
+      lastCompletedAt: null,
+      sessionId: 'salon-nuevo',
+    });
+  });
+
+  it('devuelve las marcas del cronómetro para que el panel pueda medirlo', async () => {
+    onceMock.mockResolvedValue({
+      val: () => ({
+        scanned: 50,
+        completed: 50,
+        firstScanAt: 1758800000000,
+        lastCompletedAt: 1758801500000,
+      }),
+    });
+
+    const req = { method: 'GET' };
+    const res = createRes();
+
+    await getCounts(req, res);
+
+    expect(res.body.firstScanAt).toBe(1758800000000);
+    expect(res.body.lastCompletedAt).toBe(1758801500000);
+    expect(res.body.pending).toBe(0); // 25 minutos de salón (1.500.000 ms)
   });
 
   it('returns 405 for non-GET/OPTIONS methods', async () => {

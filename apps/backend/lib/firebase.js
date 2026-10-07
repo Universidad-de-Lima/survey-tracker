@@ -19,3 +19,11 @@ export function getFirebaseDb() {
 export function incrementBy(amount) {
   return admin.database.ServerValue.increment(amount);
 }
+
+/**
+ * Marca de tiempo resuelta por el servidor de Firebase (no por el reloj del visitante).
+ * La usan las marcas del cronómetro: primer escaneo y última terminación.
+ */
+export function serverTimestamp() {
+  return admin.database.ServerValue.TIMESTAMP;
+}

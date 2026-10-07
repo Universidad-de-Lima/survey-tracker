@@ -73,6 +73,28 @@ export function sessionCompletedRef(sessionId) {
   return `${sessionBase(sessionId)}/completed`;
 }
 
+/** Marca del primer escaneo del salón: es el arranque del cronómetro del panel. */
+export function sessionFirstScanRef(sessionId) {
+  return `${sessionBase(sessionId)}/firstScanAt`;
+}
+
+/** Marca de la última encuesta terminada: es el final del cronómetro. */
+export function sessionLastCompletedRef(sessionId) {
+  return `${sessionBase(sessionId)}/lastCompletedAt`;
+}
+
+/**
+ * Las dos marcas del cronómetro, ya resueltas a números (o `null` si aún no existen).
+ * Van dentro del mismo nodo de la sesión, así que el panel las recibe en la misma
+ * consulta que los contadores, sin pedir nada extra.
+ */
+export function toSessionTimes(value) {
+  return {
+    firstScanAt: Number(value?.firstScanAt) || null,
+    lastCompletedAt: Number(value?.lastCompletedAt) || null,
+  };
+}
+
 /** Cabeceras CORS compartidas: el panel se sirve desde GitHub Pages. */
 export function applyCors(res, { methods = 'GET, OPTIONS', headers = 'Content-Type' } = {}) {
   res.setHeader('Access-Control-Allow-Origin', '*');

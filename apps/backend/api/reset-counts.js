@@ -29,8 +29,9 @@ export default async (req, res) => {
     const snapshot = await db.ref(sessionBase(sessionId)).once('value');
     const previousCounts = toCounts(snapshot.val());
 
-    // Un solo `set` sobre el nodo de la sesión: deja los contadores a cero y la
-    // sesión lista para el siguiente salón.
+    // Un solo `set` sobre el nodo de la sesión: deja los contadores a cero, borra las
+    // marcas del cronómetro (arranca de nuevo con el próximo escaneo) y deja la sesión
+    // lista para el siguiente salón.
     await db.ref(sessionBase(sessionId)).set({
       scanned: 0,
       completed: 0,

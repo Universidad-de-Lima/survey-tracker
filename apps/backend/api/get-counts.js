@@ -1,5 +1,11 @@
 import { getFirebaseDb } from '../lib/firebase.js';
-import { applyCors, resolveSessionId, sessionBase, toCounts } from '../lib/sessions.js';
+import {
+  applyCors,
+  resolveSessionId,
+  sessionBase,
+  toCounts,
+  toSessionTimes,
+} from '../lib/sessions.js';
 
 const db = getFirebaseDb();
 
@@ -21,8 +27,9 @@ export default async (req, res) => {
   try {
     const snapshot = await db.ref(sessionBase(sessionId)).once('value');
     const counts = toCounts(snapshot.val());
+    const times = toSessionTimes(snapshot.val());
 
-    res.status(200).json({ ...counts, sessionId });
+    res.status(200).json({ ...counts, ...times, sessionId });
   } catch (error) {
     console.error('Error al obtener los contadores para el frontend:', error);
     res.status(500).json({ error: 'Error interno del servidor al obtener los contadores.' });

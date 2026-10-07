@@ -9,7 +9,14 @@ export interface SurveyCounts {
   completed: number;
 }
 
-export type GetCountsResponse = SurveyCounts;
+/**
+ * Lo que devuelve `GET /api/get-counts`: los contadores y las dos marcas del cronómetro
+ * del salón (el primer escaneo y la última encuesta terminada).
+ */
+export interface GetCountsResponse extends SurveyCounts {
+  firstScanAt?: number | null;
+  lastCompletedAt?: number | null;
+}
 
 export interface ResetCountsResponse {
   message: string;

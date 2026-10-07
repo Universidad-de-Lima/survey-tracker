@@ -14,6 +14,7 @@ globalThis.dbStore = {
 vi.doMock('../../lib/firebase.js', () => ({
   getFirebaseDb: () => globalThis.dbStore.current,
   incrementBy: (amount) => ({ __increment__: amount }),
+  serverTimestamp: () => ({ __timestamp__: true }),
 }));
 
 const { default: done } = await import('../done.js');
@@ -26,6 +27,9 @@ beforeEach(() => {
 
 const AGRADECIMIENTO = 'encuesta quedó registrada';
 
+const incrementos = () => setMock.mock.calls.filter(([v]) => v && v.__increment__).length;
+const marcasGuardadas = () => setMock.mock.calls.filter(([v]) => v && v.__timestamp__).length;
+
 describe('GET /api/done', () => {
   it('counts the completion in the campaign session when Zoho sends no parameter', async () => {
     const res = createRes();
@@ -33,7 +37,9 @@ describe('GET /api/done', () => {
     await done({ method: 'GET' }, res);
 
     expect(refMock).toHaveBeenCalledWith('sessions/default/completed');
+    expect(refMock).toHaveBeenCalledWith('sessions/default/lastCompletedAt');
     expect(setMock).toHaveBeenCalledWith({ __increment__: 1 });
+    expect(marcasGuardadas()).toBe(1);
     expect(res.statusCode).toBe(200);
     expect(res.headers['Content-Type']).toBe('text/html; charset=utf-8');
     expect(res.body).toContain(AGRADECIMIENTO);
@@ -62,7 +68,8 @@ describe('GET /api/done', () => {
     const segunda = createRes();
     await done({ method: 'GET', headers: { cookie: 'cualquier-cosa=1' } }, segunda);
 
-    expect(setMock).toHaveBeenCalledTimes(2);
+    expect(incrementos()).toBe(2);
+    expect(marcasGuardadas()).toBe(2); // cada terminación reescribe la marca: queda la última
     expect(segunda.body).toContain(AGRADECIMIENTO);
   });
 

@@ -1,5 +1,10 @@
-import { getFirebaseDb, incrementBy } from '../lib/firebase.js';
-import { applyCors, resolveSessionId, sessionScannedRef } from '../lib/sessions.js';
+import { getFirebaseDb, incrementBy, serverTimestamp } from '../lib/firebase.js';
+import {
+  applyCors,
+  resolveSessionId,
+  sessionFirstScanRef,
+  sessionScannedRef,
+} from '../lib/sessions.js';
 
 const db = getFirebaseDb();
 
@@ -27,6 +32,20 @@ export default async (req, res) => {
     console.log(`Escaneo contado en ${sessionId}.`);
   } catch (error) {
     console.error('Error al contar el escaneo (se redirige igual a la encuesta):', error);
+  }
+
+  // El cronómetro del panel arranca con el primer escaneo del salón. Se escribe una sola
+  // vez (si ya hay marca, no se toca): el conteo no depende de ella, así que si falla solo
+  // se pierde la marca, nunca el escaneo ni la respuesta del alumno.
+  try {
+    const marca = db.ref(sessionFirstScanRef(sessionId));
+    const actual = await marca.once('value');
+
+    if (!actual.exists() || !actual.val()) {
+      await marca.set(serverTimestamp());
+    }
+  } catch (error) {
+    console.error('Error al marcar el primer escaneo (el conteo sigue igual):', error);
   }
 
   res.writeHead(302, {

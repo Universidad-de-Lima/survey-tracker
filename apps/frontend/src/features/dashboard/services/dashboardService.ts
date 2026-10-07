@@ -9,6 +9,8 @@ export async function fetchSurveyCounts(): Promise<DashboardCounts> {
     scanned: data.scanned,
     completed: data.completed,
     pending: Math.max(0, data.scanned - data.completed),
+    firstScanAt: data.firstScanAt ?? null,
+    lastCompletedAt: data.lastCompletedAt ?? null,
   };
 }
 
