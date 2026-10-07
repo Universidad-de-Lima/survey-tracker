@@ -9,9 +9,12 @@
 //   Sirve "/" como index.html, con el tipo MIME correcto, 404 claro si el
 //   archivo no existe y SIN listar directorios.
 //   Atiende POST /api/subir-csv: recibe un CSV de Zoho (el archivo en crudo, no
-//   multipart), lo guarda en la carpeta de entradas con un nombre único y
-//   responde un resumen (filas, identificadores únicos, COMPLETED y PARTIAL).
-//   NO ejecuta el ETL: solo recibe, guarda y resume.
+//   multipart), lo guarda en la carpeta de entradas con un nombre único y,
+//   si el nombre corresponde a una encuesta conocida, lo copia a data/ con el
+//   nombre canónico, ejecuta el proceso del portal (actualizar-portal.sh) y
+//   responde un resumen (filas, identificadores únicos, COMPLETED y PARTIAL)
+//   más el resultado de la actualización (números nuevos o el error del proceso).
+//   Una subida a la vez: mientras el proceso corre, otra subida responde 409.
 //
 // Cómo arranca el usuario (ver docs/servidor-local.md):
 //   node --env-file="C:\ruta\portal.env" apps/backend/servidor-local.js
@@ -19,12 +22,16 @@
 //   SITIO_DIR=Q:\ANALISTA DE DATOS\1. GitHub\survey-test\zoho-survey
 //   PUERTO=8000
 //   ENTRADAS_DIR=...\6.10 HTML\entradas   (opcional; por defecto, hermana de SITIO_DIR)
+//   DATA_DIR=...\6.10 HTML\data           (opcional; por defecto, hermana de SITIO_DIR)
+//   PROCESO_CMD=C:/ruta/actualizar-portal.sh  (opcional; el proceso que publica)
 //   SUBIR_CSV_MAX_BYTES=10485760          (opcional; tope de la subida)
+//   PROCESO_TIMEOUT_MS=1800000            (opcional; tope del proceso)
 //
 // Compatibilidad: Node 26 (y cualquier Node >= 18 con fetch global).
 // ============================================================
 
-import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
@@ -93,6 +100,154 @@ export function resolverEntradas(sitio, dir = process.env.ENTRADAS_DIR) {
   const ruta = dir ? path.resolve(dir) : path.resolve(sitio, '..', 'entradas');
   mkdirSync(ruta, { recursive: true });
   return ruta;
+}
+
+// ---------- carpeta de datos (CSV que lee el ETL) ----------
+// DATA_DIR, si está definida, manda siempre. Por defecto se usa una carpeta
+// 'data' hermana de la carpeta servida (sitio/ → ../data), que es donde el
+// proceso en Python del proyecto operativo lee los CSV de entrada.
+export function resolverData(sitio, dir = process.env.DATA_DIR) {
+  const ruta = dir ? path.resolve(dir) : path.resolve(sitio, '..', 'data');
+  mkdirSync(ruta, { recursive: true });
+  return ruta;
+}
+
+// ---------- encuestas conocidas (nombres de archivo aceptados) ----------
+// El ETL identifica cada encuesta por el NOMBRE del archivo (substring de nivel
+// + periodo en el nombre). Estos son los únicos nombres que el botón «Subir
+// datos» acepta; cualquier otro se rechaza con la lista de los aceptados.
+// `salida` es la carpeta publicada de esa encuesta dentro de sitio/ (donde el
+// ETL deja dashboard_data.json); sirve para leer los números nuevos.
+export const ENCUESTAS_CONOCIDAS = [
+  { archivo: 'ENCUESTA DE SATISFACCIÓN ESTUDIANTIL - PREGRADO - 2025-2.csv', salida: 'students/undergraduate/2025-2' },
+  { archivo: 'ENCUESTA DE SATISFACCIÓN ESTUDIANTIL - PREGRADO - 2026-1.csv', salida: 'students/undergraduate/2026-1' },
+  { archivo: 'ENCUESTA DE SATISFACCIÓN ESTUDIANTIL - PREGRADO - 2026-2.csv', salida: 'students/undergraduate/2026-2' },
+  { archivo: 'ENCUESTA DE SATISFACCIÓN DOCENTE - PREGRADO - 2026.csv', salida: 'facultystaff/undergraduate/2026' },
+  { archivo: 'ENCUESTA DE SATISFACCIÓN GRADUADOS - PREGRADO - 2026.csv', salida: 'students/graduate/2026' },
+  { archivo: 'ENCUESTA DE SATISFACCIÓN NO DOCENTE - 2026.csv', salida: 'nonfacultystaff/2026' },
+];
+
+/** Normaliza un nombre de archivo para compararlo: sin .csv, sin tildes, sin
+ *  espacios de sobra y en mayúsculas. */
+export function normalizarNombre(nombre) {
+  return String(nombre || '')
+    .replace(/\.csv$/i, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}
+
+/** La encuesta conocida que corresponde a un nombre original, o null si no hay
+ *  ninguna (entonces NO se procesa). */
+export function encuestaConocida(nombreOriginal) {
+  const buscado = normalizarNombre(nombreOriginal);
+  return ENCUESTAS_CONOCIDAS.find((e) => normalizarNombre(e.archivo) === buscado) || null;
+}
+
+/** Copia el CSV subido a data/ con el nombre canónico que el ETL espera.
+ *  Sobrescribe el anterior de esa encuesta (es la fuente que el proceso lee). */
+export function escribirEnData(dataDir, encuesta, buffer) {
+  const destino = path.join(dataDir, encuesta.archivo);
+  writeFileSync(destino, buffer);
+  return destino;
+}
+
+// ---------- proceso que publica los números ----------
+// El proceso del portal vive fuera del repositorio (script del proyecto
+// operativo). Se ejecuta tal cual, sin reimplementarlo. Configurable con
+// PROCESO_CMD; el tope de tiempo, con PROCESO_TIMEOUT_MS.
+export const PROCESO_POR_DEFECTO = 'C:/Users/jloayzac/portal-survey/actualizar-portal.sh';
+export const PROCESO_TIMEOUT_POR_DEFECTO = 30 * 60 * 1000;
+
+/** Tope de tiempo del proceso en ms: PROCESO_TIMEOUT_MS si es válido, o 30 min. */
+export function limiteProceso() {
+  const n = Number(process.env.PROCESO_TIMEOUT_MS);
+  return Number.isFinite(n) && n > 0 ? n : PROCESO_TIMEOUT_POR_DEFECTO;
+}
+
+/** El bash con el que se ejecuta el proceso (un .sh). Windows no siempre lo trae
+ *  en el PATH del servidor, que arranca oculto: se puede fijar con PROCESO_BASH
+ *  y, si no, se busca en las rutas conocidas (Git para Windows y el bash de Hermes). */
+export function resolverBash() {
+  if (process.env.PROCESO_BASH) return process.env.PROCESO_BASH;
+  const candidatos = [
+    'C:\\Program Files\\Git\\bin\\bash.exe',
+    'C:\\Program Files\\Git\\usr\\bin\\bash.exe',
+    'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+  ];
+  try {
+    const base = path.join(process.env.LOCALAPPDATA || '', 'hermes', 'tools');
+    if (base && existsSync(base)) {
+      for (const entrada of readdirSync(base)) {
+        if (entrada.startsWith('git-')) {
+          candidatos.push(path.join(base, entrada, 'bin', 'bash.exe'));
+          candidatos.push(path.join(base, entrada, 'usr', 'bin', 'bash.exe'));
+        }
+      }
+    }
+  } catch { /* sin bash de Hermes: se prueba el PATH */ }
+  for (const candidato of candidatos) {
+    try { if (existsSync(candidato)) return candidato; } catch { /* sigue */ }
+  }
+  return 'bash';
+}
+
+/**
+ * Ejecuta el proceso del portal y resuelve { ok, codigo, salida }. No lanza:
+ * un fallo del proceso vuelve como ok:false con su salida para mostrarlo.
+ */
+export function ejecutarProcesoReal({ cmd = process.env.PROCESO_CMD || PROCESO_POR_DEFECTO, timeout = limiteProceso() } = {}) {
+  return new Promise((ok) => {
+    let hijo;
+    try {
+      hijo = spawn(resolverBash(), [cmd], { windowsHide: true });
+    } catch (error) {
+      ok({ ok: false, codigo: null, salida: `No se pudo arrancar el proceso: ${error.message}` });
+      return;
+    }
+    let salida = '';
+    let terminado = false;
+    const guardar = (t) => { salida = (salida + t).slice(-8000); };
+    hijo.stdout.on('data', (t) => guardar(t.toString('utf8')));
+    hijo.stderr.on('data', (t) => guardar(t.toString('utf8')));
+    const reloj = setTimeout(() => {
+      if (terminado) return;
+      terminado = true;
+      try { hijo.kill(); } catch { /* ya murió */ }
+      ok({ ok: false, codigo: null, salida: `${salida}\nEl proceso excedió el tope de tiempo (${Math.round(timeout / 1000)} s).` });
+    }, timeout);
+    hijo.on('error', (error) => {
+      if (terminado) return;
+      terminado = true;
+      clearTimeout(reloj);
+      ok({ ok: false, codigo: null, salida: `No se pudo ejecutar el proceso: ${error.message}` });
+    });
+    hijo.on('close', (codigo) => {
+      if (terminado) return;
+      terminado = true;
+      clearTimeout(reloj);
+      ok({ ok: codigo === 0, codigo, salida });
+    });
+  });
+}
+
+/** Los números publicados de una encuesta (del dashboard_data.json de sitio/). */
+export function leerNumeros(sitio, encuesta) {
+  try {
+    const ruta = path.join(sitio, encuesta.salida, 'json', 'dashboard_data.json');
+    const datos = JSON.parse(readFileSync(ruta, 'utf8'));
+    const r = datos.resumen || {};
+    return {
+      periodo: r.periodo ?? null,
+      encuestados: r.encuestas ?? null,
+      nps: (r.nps && r.nps.score) ?? (datos.nps && datos.nps.score) ?? null,
+      csat: (r.csat && r.csat.score) ?? null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // Tope de tamaño de un CSV subido (10 MB por defecto). Configurable con
@@ -339,8 +494,14 @@ function leerCuerpoCrudo(req, res, limite) {
   });
 }
 
-/** Atiende POST /api/subir-csv: recibe, guarda y resume el CSV (sin ETL). */
-async function manejarSubirCsv(req, res, { sitio, entradas, limite }) {
+/**
+ * Atiende POST /api/subir-csv: recibe el CSV, lo guarda en entradas/ y, si su
+ * nombre corresponde a una encuesta conocida, lo copia a data/ con el nombre
+ * canónico, ejecuta el proceso que publica en sitio/ y devuelve el resultado
+ * (los números nuevos o el error del proceso). Un nombre desconocido se rechaza
+ * con la lista de los aceptados y no se procesa nada.
+ */
+async function manejarSubirCsv(req, res, { sitio, entradas, data, limite, ejecutarProceso, estado }) {
   if (req.method !== 'POST') {
     return enviarJson(res, 405, { error: 'Método no permitido: /api/subir-csv solo atiende POST.' });
   }
@@ -372,17 +533,59 @@ async function manejarSubirCsv(req, res, { sitio, entradas, limite }) {
     original = '';
   }
 
-  const carpeta = resolverEntradas(sitio, entradas);
-  const nombre = guardarCsvUnico(carpeta, original, buffer);
+  // El NOMBRE decide qué encuesta es. Si no es una conocida, se avisa y no se
+  // procesa nada (no se guarda ni se copia a data/).
+  const encuesta = encuestaConocida(original);
+  if (!encuesta) {
+    return enviarJson(res, 400, {
+      ok: false,
+      error: 'El nombre del archivo no corresponde a ninguna encuesta conocida; no se procesó nada. Renómbralo como uno de los nombres aceptados y vuelve a subirlo.',
+      nombres_aceptados: ENCUESTAS_CONOCIDAS.map((e) => e.archivo),
+    });
+  }
 
-  return enviarJson(res, 200, {
-    ok: true,
-    archivo: nombre,
-    carpeta,
-    codificacion,
-    delimitador,
-    resumen,
-  });
+  // Una subida a la vez: el proceso publica en sitio/ y no debe pisarse.
+  if (estado.enProceso) {
+    return enviarJson(res, 409, {
+      ok: false,
+      error: 'Ya hay una actualización en curso. Espera a que termine y vuelve a subir el archivo.',
+    });
+  }
+  estado.enProceso = true;
+
+  try {
+    const carpeta = resolverEntradas(sitio, entradas);
+    const nombre = guardarCsvUnico(carpeta, original, buffer);
+
+    // Lleva el CSV a data/ con el nombre que el proceso espera y lo ejecuta.
+    const dataDir = resolverData(sitio, data);
+    escribirEnData(dataDir, encuesta, buffer);
+
+    let proceso;
+    try {
+      proceso = await ejecutarProceso({ dataDir, sitio, encuesta });
+    } catch (error) {
+      proceso = { ok: false, codigo: null, salida: `Error al ejecutar el proceso: ${error && error.message}` };
+    }
+    const numeros = proceso.ok ? leerNumeros(sitio, encuesta) : null;
+
+    const respuesta = {
+      ok: proceso.ok,
+      archivo: nombre,
+      carpeta,
+      encuesta: encuesta.archivo,
+      salida: encuesta.salida,
+      codificacion,
+      delimitador,
+      resumen,
+      proceso: { codigo: proceso.codigo ?? null, salida: String(proceso.salida || '').slice(-2000) },
+      numeros,
+    };
+    if (!proceso.ok) respuesta.error = 'El proceso terminó con error; revisa la salida.';
+    return enviarJson(res, proceso.ok ? 200 : 500, respuesta);
+  } finally {
+    estado.enProceso = false;
+  }
 }
 
 // ---------- utilidades de respuesta HTTP ----------
@@ -444,14 +647,16 @@ function enviarArchivo(res, destino, info) {
 }
 
 // ---------- manejador y servidor ----------
-export function crearManejador({ sitio, entradas, limiteCsv: limite } = {}) {
+export function crearManejador({ sitio, entradas, data, limiteCsv: limite, ejecutarProceso = ejecutarProcesoReal } = {}) {
   const limiteSubida = limite || limiteCsv();
+  // Estado por servidor: una sola actualización (proceso) a la vez.
+  const estado = { enProceso: false };
   return function (req, res) {
     // Mismo origen: se permite el origen de la propia petición (no CORS abierto).
     if (req.headers && req.headers.origin) res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
     const ruta = (req.url || '/').split('?')[0];
     if (ruta === '/api/subir-csv') {
-      manejarSubirCsv(req, res, { sitio, entradas, limite: limiteSubida }).catch((error) => {
+      manejarSubirCsv(req, res, { sitio, entradas, data, limite: limiteSubida, ejecutarProceso, estado }).catch((error) => {
         console.error('Error inesperado en /api/subir-csv:', error && error.message);
         if (!res.headersSent) enviarJson(res, 500, { error: 'Error interno del servidor.' });
       });
@@ -461,8 +666,12 @@ export function crearManejador({ sitio, entradas, limiteCsv: limite } = {}) {
   };
 }
 
-export function crearServidor({ sitio, entradas, limiteCsv } = {}) {
-  return http.createServer(crearManejador({ sitio, entradas, limiteCsv }));
+export function crearServidor({ sitio, entradas, data, limiteCsv, ejecutarProceso } = {}) {
+  const servidor = http.createServer(crearManejador({ sitio, entradas, data, limiteCsv, ejecutarProceso }));
+  // El proceso publica en sitio/ y puede tardar minutos: sin tope de tiempo de
+  // petición, la respuesta espera a que termine en vez de cortar con 408.
+  servidor.requestTimeout = 0;
+  return servidor;
 }
 
 /** Las direcciones por las que se puede abrir el portal (localhost + red interna). */

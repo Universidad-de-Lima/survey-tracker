@@ -123,6 +123,7 @@ Detalle completo en [docs/api/README.md](./docs/api/README.md).
 | GET | `/api/health` | Igual que `get-counts`: comprueba de un vistazo que el backend responde |
 | POST | `/api/procesar-encuesta` | Lo llama el portal para pedir la actualización de datos |
 | POST | `/api/interpretar` | Asistente del portal (ítem 1.9): la IA elige qué datos leer y redacta |
+| POST | `/api/subir-csv` | Botón «Subir datos» (servidor local): recibe el CSV, lo copia a `data/` con el nombre canónico y ejecuta el proceso del portal |
 
 ## Estructura del proyecto
 
@@ -138,7 +139,7 @@ survey-tracker/
 │   │   │   ├── reset-counts.js     # botón RESET
 │   │   │   ├── interpretar.js      # IA del asistente del portal
 │   │   │   └── procesar-encuesta.js # pide al portal que actualice sus datos
-│   │   ├── servidor-local.js       # servidor Node sin dependencias (portal + IA, sin Vercel)
+│   │   ├── servidor-local.js       # servidor Node sin dependencias (portal + IA + subida de CSV, sin Vercel)
 │   │   ├── lib/
 │   │   │   ├── firebase.js       # Firebase Admin + incremento atómico
 │   │   │   └── sessions.js       # rutas de la sesión y cálculo de contadores
@@ -214,8 +215,10 @@ pnpm --filter @survey-tracker/frontend build
 
 El portal y el intérprete de IA (`/api/interpretar`) también pueden correr en la propia PC, en
 horario laboral, sin Vercel: `apps/backend/servidor-local.js` es un servidor Node **sin
-dependencias** (solo módulos estándar) que sirve los archivos del portal de `survey-test` y
-reutiliza el handler de la IA que ya corre en Vercel.
+dependencias** (solo módulos estándar) que sirve los archivos del portal de `survey-test`,
+reutiliza el handler de la IA que ya corre en Vercel y atiende `POST /api/subir-csv` (el botón
+«Subir datos»: recibe el CSV, lo copia a `data/` con el nombre canónico de la encuesta y ejecuta
+el proceso del portal, que publica en `sitio/`).
 
 ```bash
 node --env-file="C:\Users\jloayzac\portal-survey\ia.env" apps/backend/servidor-local.js
